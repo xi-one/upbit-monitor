@@ -19,6 +19,47 @@ conn = psycopg2.connect(
 cursor = conn.cursor()
 batch = []
 current_batch_second = None
+DEFAULT_MARKETS = ["KRW-BTC", "KRW-ETH"]
+
+
+def load_markets():
+    """
+    Load markets from a text file (one market per line).
+    Supports blank lines and '#' comments.
+    """
+    markets_file = os.getenv("UPBIT_MARKETS_FILE", "markets.txt")
+    if not os.path.isabs(markets_file):
+        markets_file = os.path.join(os.path.dirname(__file__), markets_file)
+
+    try:
+        with open(markets_file, "r", encoding="utf-8") as f:
+            markets = []
+            for line in f:
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    continue
+                markets.append(s)
+    except FileNotFoundError:
+        print(f"markets file not found: {markets_file} (using default markets)")
+        return DEFAULT_MARKETS
+    except Exception as e:
+        print(f"failed to read markets file: {markets_file} ({e}) (using default markets)")
+        return DEFAULT_MARKETS
+
+    # Deduplicate while preserving order
+    unique = []
+    seen = set()
+    for m in markets:
+        if m in seen:
+            continue
+        seen.add(m)
+        unique.append(m)
+
+    if not unique:
+        print(f"markets file is empty: {markets_file} (using default markets)")
+        return DEFAULT_MARKETS
+
+    return unique
 
 def insert_batch():
     global batch
@@ -70,11 +111,13 @@ def on_message(ws, message):
 
 def on_open(ws):
     print("websocket connected")
+    markets = load_markets()
+    print(f"subscribing markets: {markets}")
     subscribe = [
         {"ticket": "test"},
         {
             "type": "trade",
-            "codes": ["KRW-BTC", "KRW-ETH"]
+            "codes": markets
         }
     ]
     ws.send(json.dumps(subscribe))
