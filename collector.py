@@ -18,7 +18,7 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 batch = []
-BATCH_SIZE = 100
+current_batch_second = None
 
 def insert_batch():
     global batch
@@ -43,11 +43,19 @@ def insert_batch():
         batch = []  # 손상 배치 제거
 
 def on_message(ws, message):
-    global batch
+    global batch, current_batch_second
     try:
         if isinstance(message, bytes):
             message = message.decode('utf-8')
         data = json.loads(message)
+        trade_second = data['timestamp'] // 1000
+
+        if current_batch_second is None:
+            current_batch_second = trade_second
+        elif trade_second != current_batch_second:
+            insert_batch()
+            current_batch_second = trade_second
+
         row = (
             datetime.fromtimestamp(data['timestamp'] / 1000, tz=timezone.utc),
             data['code'],
@@ -57,8 +65,6 @@ def on_message(ws, message):
             data['ask_bid']
         )
         batch.append(row)
-        if len(batch) >= BATCH_SIZE:
-            insert_batch()
     except Exception as e:
         print(f"processing error: {e}")
 
@@ -77,8 +83,10 @@ def on_error(ws, error):
     print(f"websocket error: {error}")
 
 def on_close(ws, close_status_code, close_msg):
+    global current_batch_second
     print("websocket closed")
     insert_batch()  # 남은 배치 flush
+    current_batch_second = None
 
 def run_collector():
     while True:
