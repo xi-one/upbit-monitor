@@ -4,10 +4,44 @@ import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+from logging.handlers import TimedRotatingFileHandler
+import logging
 import os
+import re
+import signal
+import sys
 import time
 
 load_dotenv()
+
+LOG_DIR = os.getenv("LOG_DIR", os.path.join(os.path.dirname(__file__), "logs"))
+LOG_FILE = os.getenv("LOG_FILE", os.path.join(LOG_DIR, "collector.log"))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+os.makedirs(LOG_DIR, exist_ok=True)
+
+logger = logging.getLogger("upbit_collector")
+logger.setLevel(getattr(logging, LOG_LEVEL, logging.WARNING))
+logger.handlers.clear()
+
+formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+
+file_handler = TimedRotatingFileHandler(
+    LOG_FILE,
+    when="midnight",
+    interval=1,
+    backupCount=92,
+    encoding="utf-8",
+)
+file_handler.suffix = "%Y%m%d"
+file_handler.extMatch = re.compile(r"^\d{8}$", re.ASCII)
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+logger.propagate = False
 
 conn = psycopg2.connect(
     host=os.getenv("POSTGRES_HOST", "localhost"),
@@ -20,6 +54,7 @@ cursor = conn.cursor()
 batch = []
 current_batch_second = None
 DEFAULT_MARKETS = ["KRW-BTC", "KRW-ETH"]
+shutdown_requested = False
 
 
 def load_markets():
@@ -76,11 +111,11 @@ def insert_batch():
             batch
         )
         conn.commit()
-        print(f"inserted {len(batch)} rows")
+        logger.debug("inserted %d rows", len(batch))
         batch = []
     except Exception as e:
         conn.rollback()
-        print(f"DB batch error: {e}")
+        logger.exception("DB batch error: %s", e)
         batch = []  # 손상 배치 제거
 
 def on_message(ws, message):
@@ -107,12 +142,11 @@ def on_message(ws, message):
         )
         batch.append(row)
     except Exception as e:
-        print(f"processing error: {e}")
+        logger.exception("processing error: %s", e)
 
 def on_open(ws):
-    print("websocket connected")
     markets = load_markets()
-    print(f"subscribing markets: {markets}")
+    logger.info("collector started: subscribing %d markets", len(markets))
     subscribe = [
         {"ticket": "test"},
         {
@@ -123,13 +157,26 @@ def on_open(ws):
     ws.send(json.dumps(subscribe))
 
 def on_error(ws, error):
-    print(f"websocket error: {error}")
+    logger.error("websocket error: %s", error)
 
 def on_close(ws, close_status_code, close_msg):
     global current_batch_second
-    print("websocket closed")
     insert_batch()  # 남은 배치 flush
     current_batch_second = None
+    if not shutdown_requested:
+        logger.warning(
+            "websocket closed: status=%s message=%s",
+            close_status_code,
+            close_msg,
+        )
+
+def handle_shutdown(signum, frame):
+    global shutdown_requested
+    shutdown_requested = True
+    logger.info("collector stopping: received signal %s", signum)
+    insert_batch()
+    conn.close()
+    sys.exit(0)
 
 def run_collector():
     while True:
@@ -146,9 +193,13 @@ def run_collector():
                 ping_timeout=10
             )
         except Exception as e:
-            print(f"collector error: {e}")
-        print("reconnecting in 5 seconds...")
+            logger.exception("collector error: %s", e)
+        if shutdown_requested:
+            break
+        logger.warning("reconnecting in 5 seconds...")
         time.sleep(5)
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
     run_collector()
