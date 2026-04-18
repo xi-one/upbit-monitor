@@ -18,7 +18,48 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 batch = []
-BATCH_SIZE = 100
+current_batch_second = None
+DEFAULT_MARKETS = ["KRW-BTC", "KRW-ETH"]
+
+
+def load_markets():
+    """
+    Load markets from a text file (one market per line).
+    Supports blank lines and '#' comments.
+    """
+    markets_file = os.getenv("UPBIT_MARKETS_FILE", "markets.txt")
+    if not os.path.isabs(markets_file):
+        markets_file = os.path.join(os.path.dirname(__file__), markets_file)
+
+    try:
+        with open(markets_file, "r", encoding="utf-8") as f:
+            markets = []
+            for line in f:
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    continue
+                markets.append(s)
+    except FileNotFoundError:
+        print(f"markets file not found: {markets_file} (using default markets)")
+        return DEFAULT_MARKETS
+    except Exception as e:
+        print(f"failed to read markets file: {markets_file} ({e}) (using default markets)")
+        return DEFAULT_MARKETS
+
+    # Deduplicate while preserving order
+    unique = []
+    seen = set()
+    for m in markets:
+        if m in seen:
+            continue
+        seen.add(m)
+        unique.append(m)
+
+    if not unique:
+        print(f"markets file is empty: {markets_file} (using default markets)")
+        return DEFAULT_MARKETS
+
+    return unique
 
 def insert_batch():
     global batch
@@ -43,11 +84,19 @@ def insert_batch():
         batch = []  # 손상 배치 제거
 
 def on_message(ws, message):
-    global batch
+    global batch, current_batch_second
     try:
         if isinstance(message, bytes):
             message = message.decode('utf-8')
         data = json.loads(message)
+        trade_second = data['timestamp'] // 1000
+
+        if current_batch_second is None:
+            current_batch_second = trade_second
+        elif trade_second != current_batch_second:
+            insert_batch()
+            current_batch_second = trade_second
+
         row = (
             datetime.fromtimestamp(data['timestamp'] / 1000, tz=timezone.utc),
             data['code'],
@@ -57,18 +106,18 @@ def on_message(ws, message):
             data['ask_bid']
         )
         batch.append(row)
-        if len(batch) >= BATCH_SIZE:
-            insert_batch()
     except Exception as e:
         print(f"processing error: {e}")
 
 def on_open(ws):
     print("websocket connected")
+    markets = load_markets()
+    print(f"subscribing markets: {markets}")
     subscribe = [
         {"ticket": "test"},
         {
             "type": "trade",
-            "codes": ["KRW-BTC", "KRW-ETH"]
+            "codes": markets
         }
     ]
     ws.send(json.dumps(subscribe))
@@ -77,8 +126,10 @@ def on_error(ws, error):
     print(f"websocket error: {error}")
 
 def on_close(ws, close_status_code, close_msg):
+    global current_batch_second
     print("websocket closed")
     insert_batch()  # 남은 배치 flush
+    current_batch_second = None
 
 def run_collector():
     while True:
