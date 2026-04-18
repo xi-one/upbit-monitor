@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: upbit-monitor
+    orgId: 1
+    folder: Upbit Monitor
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

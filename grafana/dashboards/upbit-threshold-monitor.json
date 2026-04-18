@@ -1,0 +1,311 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 20000000
+              }
+            ]
+          },
+          "unit": "currencyKRW"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "metricColumn": "metric",
+          "rawQuery": true,
+          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'BID'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'BID'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 2;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
+          "timeColumn": "time"
+        }
+      ],
+      "title": "Buy-side 1s Trade Value >= Threshold",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 20000000
+              }
+            ]
+          },
+          "unit": "currencyKRW"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "metricColumn": "metric",
+          "rawQuery": true,
+          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'ASK'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'ASK'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 2;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
+          "timeColumn": "time"
+        }
+      ],
+      "title": "Sell-side 1s Trade Value >= Threshold",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": [
+    "upbit",
+    "timescaledb"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "20000000",
+          "value": "20000000"
+        },
+        "hide": 0,
+        "label": "Threshold KRW",
+        "name": "threshold_krw",
+        "options": [
+          {
+            "selected": true,
+            "text": "20000000",
+            "value": "20000000"
+          },
+          {
+            "selected": false,
+            "text": "50000000",
+            "value": "50000000"
+          },
+          {
+            "selected": false,
+            "text": "100000000",
+            "value": "100000000"
+          }
+        ],
+        "query": "20000000,50000000,100000000",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Upbit Threshold Monitor",
+  "uid": "upbit-threshold-monitor",
+  "version": 1,
+  "weekStart": ""
+}

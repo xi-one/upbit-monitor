@@ -11,6 +11,8 @@ services:
     volumes:
       - timescale_data:/var/lib/postgresql/data
     restart: always
+    networks:
+      - monitor
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-upbit}"]
       interval: 10s
@@ -18,5 +20,34 @@ services:
       retries: 5
       start_period: 30s
 
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+      POSTGRES_DB: ${POSTGRES_DB:-upbit}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge
+
 volumes:
   timescale_data:
+  grafana_data:
