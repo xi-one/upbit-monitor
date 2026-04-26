@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Detector Settings</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 40px auto; max-width: 760px; padding: 0 16px; color: #1f2937; }
+      h1 { margin-bottom: 8px; }
+      p.meta { color: #6b7280; margin-top: 0; }
+      form { display: grid; gap: 16px; }
+      .field { display: grid; gap: 6px; }
+      label { font-weight: 600; }
+      input { padding: 10px 12px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 8px; }
+      button { width: fit-content; padding: 10px 16px; border: 0; border-radius: 8px; background: #111827; color: white; cursor: pointer; }
+      .saved { background: #ecfdf5; border: 1px solid #10b981; color: #065f46; border-radius: 8px; padding: 10px 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Detector Settings</h1>
+    <p class="meta">Adjust detector thresholds without restarting the detector container.</p>
+    {% if saved %}<div class="saved">Settings saved.</div>{% endif %}
+    <form method="post" action="save">
+      <div class="field"><label for="ratio_5m_vs_1h">5m / 1h ratio threshold</label><input id="ratio_5m_vs_1h" name="ratio_5m_vs_1h" type="number" step="0.01" value="{{ settings.ratio_5m_vs_1h }}" required></div>
+      <div class="field"><label for="tps_multiplier">TPS multiplier threshold</label><input id="tps_multiplier" name="tps_multiplier" type="number" step="0.01" value="{{ settings.tps_multiplier }}" required></div>
+      <div class="field"><label for="price_change_pct_max">Max price change (%)</label><input id="price_change_pct_max" name="price_change_pct_max" type="number" step="0.01" value="{{ settings.price_change_pct_max }}" required></div>
+      <div class="field"><label for="avg_1h_trade_value_min">Min 1h average trade value</label><input id="avg_1h_trade_value_min" name="avg_1h_trade_value_min" type="number" step="1" value="{{ settings.avg_1h_trade_value_min }}" required></div>
+      <div class="field"><label for="cooldown_seconds">Cooldown seconds</label><input id="cooldown_seconds" name="cooldown_seconds" type="number" step="1" value="{{ settings.cooldown_seconds }}" required></div>
+      <div class="field"><label for="interval_seconds">Detector interval seconds</label><input id="interval_seconds" name="interval_seconds" type="number" step="1" value="{{ settings.interval_seconds }}" required></div>
+      <div class="field"><label for="webhook_url">Webhook URL</label><input id="webhook_url" name="webhook_url" type="text" value="{{ settings.webhook_url }}" required></div>
+      <button type="submit">Save settings</button>
+    </form>
+  </body>
+</html>

@@ -30,3 +30,12 @@ Default thresholds:
 - `DETECTOR_INTERVAL_SECONDS=10`
 
 All detector thresholds can be overridden through `.env`.
+
+## Detector Admin
+
+A small Flask-based admin UI can be exposed through nginx at:
+
+- `/detector-admin/`
+
+It writes new rows into `detector_settings`, and the detector reads the latest row
+on every loop so threshold changes apply without restarting the detector container.

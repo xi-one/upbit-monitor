@@ -1,0 +1,167 @@
+import json
+import os
+import signal
+import sys
+import time
+from datetime import datetime, timezone
+
+import websocket
+from psycopg2.extras import execute_values
+
+from app.common.config import CollectorConfig, DbConfig, resolve_path
+from app.common.db import create_connection
+from app.common.logging import build_logger
+
+logger = build_logger("upbit_collector", "collector.log")
+conn = create_connection(DbConfig())
+cursor = conn.cursor()
+batch = []
+current_batch_second = None
+shutdown_requested = False
+DEFAULT_MARKETS = ["KRW-BTC", "KRW-ETH"]
+collector_config = CollectorConfig()
+
+
+def load_markets():
+    markets_file = resolve_path(collector_config.markets_file)
+    try:
+        with open(markets_file, "r", encoding="utf-8") as file:
+            markets = []
+            for line in file:
+                symbol = line.strip()
+                if not symbol or symbol.startswith("#"):
+                    continue
+                markets.append(symbol)
+    except FileNotFoundError:
+        logger.warning("markets file not found: %s (using defaults)", markets_file)
+        return DEFAULT_MARKETS
+    except Exception as exc:
+        logger.warning("failed to read markets file: %s (%s) (using defaults)", markets_file, exc)
+        return DEFAULT_MARKETS
+
+    unique = []
+    seen = set()
+    for market in markets:
+        if market in seen:
+            continue
+        seen.add(market)
+        unique.append(market)
+
+    if not unique:
+        logger.warning("markets file is empty: %s (using defaults)", markets_file)
+        return DEFAULT_MARKETS
+
+    return unique
+
+
+def insert_batch():
+    global batch
+    if not batch:
+        return
+
+    try:
+        execute_values(
+            cursor,
+            """
+            INSERT INTO trades
+            (time,market,price,volume,trade_value,side)
+            VALUES %s
+            """,
+            batch,
+        )
+        conn.commit()
+        logger.debug("inserted %d rows", len(batch))
+        batch = []
+    except Exception as exc:
+        conn.rollback()
+        logger.exception("DB batch error: %s", exc)
+        batch = []
+
+
+def on_message(ws, message):
+    global batch, current_batch_second
+    try:
+        if isinstance(message, bytes):
+            message = message.decode("utf-8")
+        data = json.loads(message)
+        trade_second = data["timestamp"] // 1000
+
+        if current_batch_second is None:
+            current_batch_second = trade_second
+        elif trade_second != current_batch_second:
+            insert_batch()
+            current_batch_second = trade_second
+
+        row = (
+            datetime.fromtimestamp(data["timestamp"] / 1000, tz=timezone.utc),
+            data["code"],
+            data["trade_price"],
+            data["trade_volume"],
+            data["trade_price"] * data["trade_volume"],
+            data["ask_bid"],
+        )
+        batch.append(row)
+    except Exception as exc:
+        logger.exception("processing error: %s", exc)
+
+
+def on_open(ws):
+    markets = load_markets()
+    logger.info("collector started: subscribing %d markets", len(markets))
+    subscribe = [
+        {"ticket": "test"},
+        {"type": "trade", "codes": markets},
+    ]
+    ws.send(json.dumps(subscribe))
+
+
+def on_error(ws, error):
+    logger.error("websocket error: %s", error)
+
+
+def on_close(ws, close_status_code, close_msg):
+    global current_batch_second
+    insert_batch()
+    current_batch_second = None
+    if not shutdown_requested:
+        logger.warning(
+            "websocket closed: status=%s message=%s",
+            close_status_code,
+            close_msg,
+        )
+
+
+def handle_shutdown(signum, frame):
+    global shutdown_requested
+    shutdown_requested = True
+    logger.info("collector stopping: received signal %s", signum)
+    insert_batch()
+    conn.close()
+    sys.exit(0)
+
+
+def run():
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
+
+    while True:
+        try:
+            ws = websocket.WebSocketApp(
+                "wss://api.upbit.com/websocket/v1",
+                on_message=on_message,
+                on_open=on_open,
+                on_error=on_error,
+                on_close=on_close,
+            )
+            ws.run_forever(
+                ping_interval=collector_config.ping_interval,
+                ping_timeout=collector_config.ping_timeout,
+            )
+        except Exception as exc:
+            logger.exception("collector error: %s", exc)
+
+        if shutdown_requested:
+            break
+
+        logger.warning("reconnecting in %d seconds...", collector_config.reconnect_delay_seconds)
+        time.sleep(collector_config.reconnect_delay_seconds)
