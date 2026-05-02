@@ -241,7 +241,7 @@
             <span class="hint">{{ market_status.last_error if market_status and market_status.last_error else "최근 새로고침 오류가 없습니다." }}</span>
           </div>
         </div>
-        <form method="post" action="refresh-markets" style="margin-top:18px;">
+        <form method="post" action="/detector-admin/refresh-markets" style="margin-top:18px;">
           <div class="actions">
             <div class="note">새 상장 종목을 즉시 반영해야 할 때 수동으로 실행합니다.</div>
             <button type="submit">종목 목록 새로고침</button>
@@ -282,7 +282,7 @@
         <span class="kicker">수정</span>
         <h2>새 설정 스냅샷 저장</h2>
         <p>저장하면 전역 설정 1개와 규칙별 하위 row가 함께 기록됩니다. 감지기는 가장 최신 스냅샷을 자동으로 사용합니다.</p>
-        <form method="post" action="save">
+        <form method="post" action="/detector-admin/save">
           <div class="form-grid">
             <div class="field">
               <label>감지기 활성화</label>
