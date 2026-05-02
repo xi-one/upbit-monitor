@@ -9,22 +9,26 @@ def send_discord_alert(logger, webhook_url, row, reason):
         return
 
     payload = {
-        "username": "Upbit Monitor",
-        "content": f"Alert detected for **{row['market']}**",
+        "username": "업비트 모니터",
+        "content": f"조건 충족 종목 감지: **{row['market']}**",
         "embeds": [
             {
-                "title": f"{row['market']} alert",
+                "title": f"{row['market']} 알림",
                 "description": reason,
                 "color": 16753920,
                 "fields": [
-                    {"name": "5m / 1h ratio", "value": f"{row['ratio_5m_vs_1h']:.2f}x", "inline": True},
-                    {"name": "TPS now", "value": f"{row['tps_now']:.3f}", "inline": True},
-                    {"name": "TPS baseline", "value": f"{row['tps_baseline']:.3f}", "inline": True},
-                    {"name": "TPS ratio", "value": f"{row['tps_ratio']:.2f}x", "inline": True},
-                    {"name": "Price change", "value": f"{row['price_change_pct']:.2f}%", "inline": True},
-                    {"name": "1h avg trade value", "value": f"{row['avg_1h_trade_value']:.0f} KRW", "inline": False},
+                    {"name": "5분/1시간 비율", "value": f"{row['ratio_5m_vs_1h']:.2f}x", "inline": True},
+                    {"name": "현재 TPS", "value": f"{row['tps_now']:.3f}", "inline": True},
+                    {"name": "기준 TPS", "value": f"{row['tps_baseline']:.3f}", "inline": True},
+                    {"name": "TPS 증가 배수", "value": f"{row['tps_ratio']:.2f}x", "inline": True},
+                    {"name": "가격 변동률", "value": f"{row['price_change_pct']:.2f}%", "inline": True},
+                    {
+                        "name": "최근 5분 내 1초 최대 매수 거래대금",
+                        "value": f"{row['buy_1s_bid_trade_value']:.0f} KRW",
+                        "inline": False,
+                    },
                 ],
-                "footer": {"text": "Upbit detector"},
+                "footer": {"text": "업비트 감지기"},
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
         ],

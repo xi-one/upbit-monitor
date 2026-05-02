@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS market_alerts (
     tps_now DOUBLE PRECISION NOT NULL,
     tps_baseline DOUBLE PRECISION NOT NULL,
     price_change_pct DOUBLE PRECISION NOT NULL,
-    avg_1h_trade_value DOUBLE PRECISION NOT NULL,
+    buy_1s_bid_trade_value DOUBLE PRECISION NOT NULL,
     reason TEXT NOT NULL
 );
 

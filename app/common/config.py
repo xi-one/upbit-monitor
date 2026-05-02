@@ -35,7 +35,9 @@ class DetectorConfig:
     ratio_5m_vs_1h: float = float(os.getenv("ALERT_RATIO_5M_VS_1H", "2.2"))
     tps_multiplier: float = float(os.getenv("ALERT_TPS_MULTIPLIER", "1.5"))
     price_change_pct_max: float = float(os.getenv("ALERT_PRICE_CHANGE_PCT_MAX", "2.0"))
-    avg_1h_trade_value_min: float = float(os.getenv("ALERT_1H_AVG_TRADE_VALUE_MIN", "1000000000"))
+    buy_1s_bid_trade_value_min: float = float(
+        os.getenv("ALERT_BUY_1S_BID_TRADE_VALUE_MIN", os.getenv("ALERT_1H_AVG_TRADE_VALUE_MIN", "20000000"))
+    )
     cooldown_seconds: int = int(os.getenv("ALERT_COOLDOWN_SECONDS", "300"))
     interval_seconds: int = int(os.getenv("DETECTOR_INTERVAL_SECONDS", "10"))
     webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "").strip()

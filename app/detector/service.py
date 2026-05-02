@@ -9,10 +9,18 @@ from app.common.db import create_connection
 from app.common.logging import build_logger
 from app.common.schema import ensure_runtime_schema
 from app.detector.notifier import send_discord_alert
-from app.detector.queries import FETCH_CANDIDATES_SQL, FETCH_SETTINGS_SQL, INSERT_ALERT_SQL, RECENT_ALERT_SQL
+from app.detector.queries import (
+    FETCH_MARKET_METRICS_SQL,
+    FETCH_RULES_SQL,
+    FETCH_SETTINGS_SQL,
+    INSERT_ALERT_SQL,
+    RECENT_ALERT_SQL,
+)
+from app.detector.rules import RULE_DEFINITION_MAP, build_default_rules, evaluate_rules
 
 logger = build_logger("upbit_detector", "detector.log")
 detector_config = DetectorConfig()
+default_rules = build_default_rules(detector_config)
 conn = create_connection(DbConfig())
 shutdown_requested = False
 
@@ -25,35 +33,38 @@ def handle_shutdown(signum, frame):
     sys.exit(0)
 
 
-def fetch_candidates(settings):
+def fetch_market_metrics():
     with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-        cursor.execute(
-            FETCH_CANDIDATES_SQL,
-            (
-                settings["avg_1h_trade_value_min"],
-                settings["ratio_5m_vs_1h"],
-                settings["tps_multiplier"],
-                settings["price_change_pct_max"],
-            ),
-        )
+        cursor.execute(FETCH_MARKET_METRICS_SQL)
         return cursor.fetchall()
 
 
-def fetch_runtime_settings():
+def build_default_settings_bundle():
+    return {
+        "settings": {
+            "enabled": True,
+            "cooldown_seconds": detector_config.cooldown_seconds,
+            "interval_seconds": detector_config.interval_seconds,
+            "webhook_enabled": True,
+            "webhook_url": detector_config.webhook_url,
+        },
+        "rules": default_rules,
+    }
+
+
+def fetch_runtime_settings_bundle():
     with conn.cursor(cursor_factory=RealDictCursor) as cursor:
         cursor.execute(FETCH_SETTINGS_SQL)
-        row = cursor.fetchone()
-        if row is None:
-            return {
-                "ratio_5m_vs_1h": detector_config.ratio_5m_vs_1h,
-                "tps_multiplier": detector_config.tps_multiplier,
-                "price_change_pct_max": detector_config.price_change_pct_max,
-                "avg_1h_trade_value_min": detector_config.avg_1h_trade_value_min,
-                "cooldown_seconds": detector_config.cooldown_seconds,
-                "interval_seconds": detector_config.interval_seconds,
-                "webhook_url": detector_config.webhook_url,
-            }
-        return row
+        settings = cursor.fetchone()
+        if settings is None:
+            return build_default_settings_bundle()
+
+        cursor.execute(FETCH_RULES_SQL, (settings["id"],))
+        rules = cursor.fetchall()
+        if not rules:
+            rules = default_rules
+
+        return {"settings": settings, "rules": rules}
 
 
 def was_recently_alerted(market, cooldown_seconds):
@@ -72,60 +83,63 @@ def insert_alert(row, reason):
                 row["tps_now"],
                 row["tps_baseline"],
                 row["price_change_pct"],
-                row["avg_1h_trade_value"],
+                row["buy_1s_bid_trade_value"],
                 reason,
             ),
         )
     conn.commit()
 
 
-def build_reason(row, settings):
-    return (
-        f"ratio={row['ratio_5m_vs_1h']:.2f}>={settings['ratio_5m_vs_1h']},"
-        f" tps_ratio={row['tps_ratio']:.2f}>={settings['tps_multiplier']},"
-        f" price_change_pct={row['price_change_pct']:.2f}<={settings['price_change_pct_max']},"
-        f" avg_1h_trade_value={row['avg_1h_trade_value']:.0f}>={settings['avg_1h_trade_value_min']:.0f}"
-    )
+def build_reason(rule_reasons, rules):
+    active_labels = [
+        RULE_DEFINITION_MAP.get(rule["rule_key"], {}).get("label", rule["rule_key"])
+        for rule in rules
+        if rule["enabled"]
+    ]
+    return f"active_rules={', '.join(active_labels)} | " + ", ".join(rule_reasons)
 
 
 def run():
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
-    ensure_runtime_schema(conn, detector_config)
+    ensure_runtime_schema(conn, detector_config, default_rules)
 
     logger.info(
-        "detector started: ratio=%.2f tps_multiplier=%.2f price_change_pct_max=%.2f avg_1h_trade_value_min=%.0f cooldown=%ss interval=%ss",
-        detector_config.ratio_5m_vs_1h,
-        detector_config.tps_multiplier,
-        detector_config.price_change_pct_max,
-        detector_config.avg_1h_trade_value_min,
+        "detector started: cooldown=%ss interval=%ss default_rules=%s",
         detector_config.cooldown_seconds,
         detector_config.interval_seconds,
+        ", ".join(rule["rule_key"] for rule in default_rules),
     )
 
     while not shutdown_requested:
-        settings = {
-            "ratio_5m_vs_1h": detector_config.ratio_5m_vs_1h,
-            "tps_multiplier": detector_config.tps_multiplier,
-            "price_change_pct_max": detector_config.price_change_pct_max,
-            "avg_1h_trade_value_min": detector_config.avg_1h_trade_value_min,
-            "cooldown_seconds": detector_config.cooldown_seconds,
-            "interval_seconds": detector_config.interval_seconds,
-            "webhook_url": detector_config.webhook_url,
-        }
+        sleep_seconds = detector_config.interval_seconds
         try:
-            settings = fetch_runtime_settings()
-            candidates = fetch_candidates(settings)
+            bundle = fetch_runtime_settings_bundle()
+            settings = bundle["settings"]
+            rules = bundle["rules"]
+            sleep_seconds = int(settings["interval_seconds"])
+
+            if not settings["enabled"]:
+                logger.info("detector disabled: skipping evaluation loop")
+                time.sleep(sleep_seconds)
+                continue
+
+            candidates = fetch_market_metrics()
             for row in candidates:
+                passed, rule_reasons = evaluate_rules(row, rules)
+                if not passed:
+                    continue
                 if was_recently_alerted(row["market"], int(settings["cooldown_seconds"])):
                     logger.debug("alert skipped by cooldown: %s", row["market"])
                     continue
-                reason = build_reason(row, settings)
+
+                reason = build_reason(rule_reasons, rules)
                 insert_alert(row, reason)
-                send_discord_alert(logger, settings["webhook_url"], row, reason)
+                webhook_url = settings["webhook_url"] if settings["webhook_enabled"] else ""
+                send_discord_alert(logger, webhook_url, row, reason)
                 logger.info("alert recorded: %s %s", row["market"], reason)
         except Exception as exc:
             conn.rollback()
             logger.exception("detector error: %s", exc)
 
-        time.sleep(int(settings["interval_seconds"]))
+        time.sleep(sleep_seconds)
