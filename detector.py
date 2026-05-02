@@ -1,4 +1,4 @@
-from app.collector.service import run
+from app.detector.service import run
 
 
 if __name__ == "__main__":

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>감지기 설정</title>
+    <style>
+      :root {
+        --bg: #f4f1e8;
+        --card: #fffdf8;
+        --ink: #1f2937;
+        --muted: #6b7280;
+        --line: #ded5c4;
+        --accent: #0f766e;
+        --accent-soft: #d7f3ee;
+        --accent-strong: #115e59;
+        --off: #b45309;
+        --off-soft: #fff7ed;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.10), transparent 28%),
+          linear-gradient(180deg, #f6f3ea 0%, #efe7d8 100%);
+        color: var(--ink);
+      }
+      .page { max-width: 1180px; margin: 0 auto; padding: 40px 20px 56px; }
+      .hero { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 28px; }
+      h1 { margin: 0 0 10px; font-size: 36px; letter-spacing: -0.03em; }
+      p.meta { margin: 0; color: var(--muted); max-width: 760px; line-height: 1.6; }
+      .stamp {
+        min-width: 240px;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 253, 248, 0.82);
+      }
+      .stamp .label, .kicker {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .stamp .value { font-size: 15px; font-weight: 600; }
+      .saved {
+        margin-bottom: 24px;
+        background: #ecfdf5;
+        border: 1px solid #10b981;
+        color: #065f46;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+      .section {
+        background: rgba(255, 253, 248, 0.90);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 20px 45px rgba(31, 41, 55, 0.06);
+      }
+      .section + .section { margin-top: 22px; }
+      .section h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.02em; }
+      .section p { margin: 0 0 18px; color: var(--muted); }
+      .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+      .stat {
+        padding: 18px;
+        border-radius: 18px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        min-height: 118px;
+      }
+      .stat.highlight { background: linear-gradient(180deg, #f0fffb 0%, var(--accent-soft) 100%); border-color: #9adfd3; }
+      .stat.alert-off { background: linear-gradient(180deg, #fffaf1 0%, var(--off-soft) 100%); border-color: #f0caa6; }
+      .label { display: block; margin-bottom: 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+      .value { display: block; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
+      .hint { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.4; word-break: break-word; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .pill.on { background: #dcfce7; color: #166534; }
+      .pill.off { background: #ffedd5; color: #9a3412; }
+      .rule-list { display: grid; gap: 12px; }
+      .rule-row {
+        display: grid;
+        grid-template-columns: 180px 90px 90px 140px 1fr;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--card);
+      }
+      .rule-row .name { font-weight: 700; }
+      .rule-row .desc { color: var(--muted); font-size: 13px; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .field { display: grid; gap: 6px; }
+      .field.full { grid-column: 1 / -1; }
+      label { font-weight: 600; font-size: 14px; }
+      .field span { color: var(--muted); font-size: 12px; }
+      input, select {
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 14px;
+        border: 1px solid #d4c8b5;
+        border-radius: 12px;
+        background: #fffdfa;
+      }
+      input:focus, select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+      }
+      form { display: grid; gap: 22px; }
+      .rule-editor { display: grid; gap: 14px; }
+      .rule-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+        background: #fffdfa;
+      }
+      .rule-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      .rule-title { font-weight: 700; font-size: 16px; }
+      .rule-description { color: var(--muted); font-size: 13px; margin-top: 4px; }
+      .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+      .inline-grid { display: grid; grid-template-columns: 140px 1fr; gap: 12px; }
+      .checkbox-row { display: flex; gap: 10px; align-items: center; }
+      .actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+      }
+      .actions .note { color: var(--muted); font-size: 13px; }
+      button {
+        width: fit-content;
+        padding: 12px 18px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent-strong);
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      @media (max-width: 960px) {
+        .hero { flex-direction: column; }
+        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .rule-row { grid-template-columns: 1fr; }
+        .form-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 640px) {
+        .stats { grid-template-columns: 1fr; }
+        .inline-grid { grid-template-columns: 1fr; }
+        .actions { flex-direction: column; align-items: flex-start; }
+        .rule-head { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <div>
+          <h1>감지기 관리자</h1>
+          <p class="meta">전역 감지기 동작과 개별 규칙을 분리해서 관리합니다. 나중에 새 조건을 추가할 때는 <code>rule_key</code>만 등록하면 같은 UI와 평가 구조를 그대로 사용할 수 있습니다.</p>
+        </div>
+        <div class="stamp">
+          <span class="label">최신 스냅샷</span>
+          <span class="value">{{ settings.updated_at if settings.updated_at else "표시 불가" }}</span>
+        </div>
+      </div>
+
+      {% if saved %}<div class="saved">설정이 저장되었습니다.</div>{% endif %}
+
+      <section class="section">
+        <span class="kicker">개요</span>
+        <h2>현재 실행 중인 설정</h2>
+        <p>감지기는 매 평가 루프마다 가장 최신 설정 스냅샷과 그에 연결된 규칙 목록을 읽습니다.</p>
+        <div class="stats">
+          <div class="stat {% if settings.enabled %}highlight{% else %}alert-off{% endif %}">
+            <span class="label">감지기 상태</span>
+            <span class="value">{{ "활성" if settings.enabled else "비활성" }}</span>
+            <span class="hint">알림 조건 평가 자체를 켜거나 끄는 전체 스위치입니다.</span>
+          </div>
+          <div class="stat {% if settings.webhook_enabled %}highlight{% else %}alert-off{% endif %}">
+            <span class="label">웹훅 전송</span>
+            <span class="value">{{ "활성" if settings.webhook_enabled else "비활성" }}</span>
+            <span class="hint">알림 전송을 꺼도 DB에는 이벤트 기록을 남길 수 있습니다.</span>
+          </div>
+          <div class="stat">
+            <span class="label">쿨다운</span>
+            <span class="value">{{ settings.cooldown_seconds }}s</span>
+            <span class="hint">같은 종목의 중복 알림을 일정 시간 동안 막습니다.</span>
+          </div>
+          <div class="stat">
+            <span class="label">평가 주기</span>
+            <span class="value">{{ settings.interval_seconds }}s</span>
+            <span class="hint">시장 지표를 다시 계산하는 주기입니다.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <span class="kicker">규칙</span>
+        <h2>현재 규칙 목록</h2>
+        <p>각 규칙은 데이터로 저장됩니다. 나중에 조건이 늘어나도 상위 설정 테이블 구조를 다시 바꾸지 않아도 됩니다.</p>
+        <div class="rule-list">
+          {% for rule in rules %}
+          <div class="rule-row">
+            <div>
+              <div class="name">{{ rule.label }}</div>
+              <div class="desc">
+                {% for definition in rule_definitions %}
+                  {% if definition.rule_key == rule.rule_key %}{{ definition.description }}{% endif %}
+                {% endfor %}
+              </div>
+            </div>
+            <div><span class="pill {{ 'on' if rule.enabled else 'off' }}">{{ "활성" if rule.enabled else "비활성" }}</span></div>
+            <div><strong>{{ rule.operator }}</strong></div>
+            <div>
+              <strong>{{ rule.threshold_value }}</strong>
+              {% if rule.threshold_unit %}
+              <div class="desc">{{ rule.threshold_unit }}</div>
+              {% endif %}
+            </div>
+            <div class="desc">{{ rule.rule_key }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="section">
+        <span class="kicker">수정</span>
+        <h2>새 설정 스냅샷 저장</h2>
+        <p>저장하면 전역 설정 1개와 규칙별 하위 row가 함께 기록됩니다. 감지기는 가장 최신 스냅샷을 자동으로 사용합니다.</p>
+        <form method="post" action="save">
+          <div class="form-grid">
+            <div class="field">
+              <label>감지기 활성화</label>
+              <span>전체 알림 평가를 켜거나 끕니다.</span>
+              <div class="checkbox-row">
+                <input id="enabled" name="enabled" type="checkbox" {% if settings.enabled %}checked{% endif %}>
+                <label for="enabled">감지기 사용</label>
+              </div>
+            </div>
+            <div class="field">
+              <label>웹훅 활성화</label>
+              <span>DB 기록은 유지하면서 외부 알림 전송만 끌 수 있습니다.</span>
+              <div class="checkbox-row">
+                <input id="webhook_enabled" name="webhook_enabled" type="checkbox" {% if settings.webhook_enabled %}checked{% endif %}>
+                <label for="webhook_enabled">알림 전송 사용</label>
+              </div>
+            </div>
+            <div class="field">
+              <label for="cooldown_seconds">쿨다운 초</label>
+              <span>같은 종목에 대한 반복 알림을 이 시간 동안 막습니다.</span>
+              <input id="cooldown_seconds" name="cooldown_seconds" type="number" step="1" value="{{ settings.cooldown_seconds }}" required>
+            </div>
+            <div class="field">
+              <label for="interval_seconds">감지기 주기 초</label>
+              <span>시장 지표를 다시 계산하는 루프 주기입니다.</span>
+              <input id="interval_seconds" name="interval_seconds" type="number" step="1" value="{{ settings.interval_seconds }}" required>
+            </div>
+            <div class="field full">
+              <label for="webhook_url">웹훅 URL</label>
+              <span>웹훅 전송이 켜져 있을 때 사용하는 알림 대상 주소입니다.</span>
+              <input id="webhook_url" name="webhook_url" type="text" value="{{ settings.webhook_url }}" required>
+            </div>
+          </div>
+
+          <div class="rule-editor">
+            {% for rule in rules %}
+            <div class="rule-card">
+              <div class="rule-head">
+                <div>
+                  <div class="rule-title">{{ rule.label }}</div>
+                  <div class="rule-description">
+                    {% for definition in rule_definitions %}
+                      {% if definition.rule_key == rule.rule_key %}{{ definition.description }}{% endif %}
+                    {% endfor %}
+                  </div>
+                </div>
+                <label class="toggle" for="{{ rule.rule_key }}__enabled">
+                  <input id="{{ rule.rule_key }}__enabled" name="{{ rule.rule_key }}__enabled" type="checkbox" {% if rule.enabled %}checked{% endif %}>
+                  활성화
+                </label>
+              </div>
+              <div class="inline-grid">
+                <div class="field">
+                  <label for="{{ rule.rule_key }}__operator">비교 연산자</label>
+                  <select id="{{ rule.rule_key }}__operator" name="{{ rule.rule_key }}__operator">
+                    {% for op in [">", ">=", "<", "<=", "=="] %}
+                    <option value="{{ op }}" {% if rule.operator == op %}selected{% endif %}>{{ op }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="{{ rule.rule_key }}__threshold">임계치</label>
+                  {% if rule.threshold_unit %}
+                  <span>{{ rule.threshold_unit }} 단위로 입력합니다.</span>
+                  {% endif %}
+                  <input id="{{ rule.rule_key }}__threshold" name="{{ rule.rule_key }}__threshold" type="number" step="{{ rule.threshold_step }}" value="{{ rule.threshold_value }}" required>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="actions">
+            <div class="note">앞으로 새 조건이 필요하면 rule definition과 evaluator만 추가해서 같은 방식으로 확장할 수 있습니다.</div>
+            <button type="submit">설정 저장</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </body>
+</html>

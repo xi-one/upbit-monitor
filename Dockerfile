@@ -12,6 +12,5 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY collector.py markets.txt ./
-
-CMD ["python", "collector.py"]
+COPY collector.py detector.py detector_web.py markets.txt ./
+COPY app ./app
