@@ -28,6 +28,21 @@ class CollectorConfig:
     ping_interval: int = 30
     ping_timeout: int = 10
     reconnect_delay_seconds: int = 5
+    refresh_check_interval_seconds: int = int(os.getenv("MARKET_REFRESH_CHECK_INTERVAL_SECONDS", "5"))
+
+
+@dataclass(frozen=True)
+class MarketSyncConfig:
+    markets_file: str = os.getenv("UPBIT_MARKETS_FILE", "markets.txt")
+    market_list_file: str = os.getenv("UPBIT_MARKET_LIST_FILE", "list.txt")
+    upbit_market_all_url: str = os.getenv("UPBIT_MARKET_ALL_URL", "https://api.upbit.com/v1/market/all?is_details=false")
+    coinpaprika_tickers_url: str = os.getenv("COINPAPRIKA_TICKERS_URL", "https://api.coinpaprika.com/v1/tickers")
+    market_cap_limit_krw: float = float(os.getenv("MARKET_CAP_LIMIT_KRW", "1000000000000"))
+    usdkrw_rate: float = float(os.getenv("MARKET_CAP_USDKRW", "1350"))
+    include_unknown_markets: bool = os.getenv("MARKET_INCLUDE_UNKNOWN", "true").lower() in {"1", "true", "yes", "on"}
+    refresh_interval_seconds: int = int(os.getenv("MARKET_REFRESH_INTERVAL_SECONDS", "86400"))
+    failure_retry_seconds: int = int(os.getenv("MARKET_REFRESH_FAILURE_RETRY_SECONDS", "300"))
+    request_timeout_seconds: int = int(os.getenv("MARKET_REFRESH_REQUEST_TIMEOUT_SECONDS", "20"))
 
 
 @dataclass(frozen=True)

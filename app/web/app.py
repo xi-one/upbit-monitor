@@ -1,17 +1,21 @@
 import base64
 from functools import wraps
+from urllib.parse import quote
 
 from flask import Flask, Response, redirect, render_template, request, url_for
 from psycopg2.extras import RealDictCursor
 
 from app.common.config import DbConfig, DetectorConfig, DetectorWebConfig
 from app.common.db import create_connection
+from app.common.schema import ensure_market_sync_schema
 from app.detector.queries import FETCH_RULES_SQL, FETCH_SETTINGS_SQL, INSERT_RULE_SQL, INSERT_SETTINGS_SQL
 from app.detector.rules import RULE_DEFINITIONS, build_default_rules, normalize_rule_key
+from app.markets.service import fetch_market_sync_status, refresh_market_universe
 
 app = Flask(__name__, template_folder="templates")
 db_conn = create_connection(DbConfig())
 db_conn.autocommit = True
+ensure_market_sync_schema(db_conn)
 default_detector_settings = DetectorConfig()
 default_rules = build_default_rules(default_detector_settings)
 web_config = DetectorWebConfig()
@@ -93,8 +97,9 @@ def build_render_context():
                 "webhook_url": default_detector_settings.webhook_url,
                 "updated_at": None,
             },
-            "rules": default_rules,
+            "rules": [_format_rule_for_display(rule) for rule in default_rules],
             "rule_definitions": RULE_DEFINITIONS,
+            "market_status": fetch_market_sync_status(db_conn),
         }
 
     rule_map = {}
@@ -125,6 +130,7 @@ def build_render_context():
         "settings": bundle["settings"],
         "rules": rules_for_render,
         "rule_definitions": RULE_DEFINITIONS,
+        "market_status": fetch_market_sync_status(db_conn),
     }
 
 
@@ -137,7 +143,10 @@ def index():
         settings=context["settings"],
         rules=context["rules"],
         rule_definitions=context["rule_definitions"],
+        market_status=context["market_status"],
         saved=request.args.get("saved") == "1",
+        markets_refreshed=request.args.get("markets_refreshed") == "1",
+        market_refresh_error=request.args.get("market_refresh_error", "").strip(),
     )
 
 
@@ -175,6 +184,15 @@ def save():
             )
     db_conn.commit()
     return redirect("/detector-admin/?saved=1")
+
+
+@app.route("/refresh-markets", methods=["POST"])
+@requires_auth
+def refresh_markets():
+    result = refresh_market_universe()
+    if result["ok"]:
+        return redirect("/detector-admin/?markets_refreshed=1")
+    return redirect(f"/detector-admin/?market_refresh_error={quote(result['error'])}")
 
 
 def run():

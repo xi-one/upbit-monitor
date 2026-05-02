@@ -5,6 +5,7 @@ services:
     ports:
       - "5432:5432"
     environment:
+      TZ: Asia/Seoul
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -27,15 +28,50 @@ services:
     container_name: upbit-collector
     command: ["python", "collector.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       UPBIT_MARKETS_FILE: /app/markets.txt
+      MARKET_REFRESH_CHECK_INTERVAL_SECONDS: ${MARKET_REFRESH_CHECK_INTERVAL_SECONDS:-5}
     depends_on:
       timescaledb:
         condition: service_healthy
+    volumes:
+      - ${PROJECT_ROOT:-.}/markets.txt:/app/markets.txt
+      - ${PROJECT_ROOT:-.}/list.txt:/app/list.txt
+    restart: unless-stopped
+    networks:
+      - monitor
+
+  market-sync:
+    build:
+      context: .
+    container_name: upbit-market-sync
+    command: ["python", "market_sync.py"]
+    environment:
+      TZ: Asia/Seoul
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-upbit}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      UPBIT_MARKETS_FILE: /app/markets.txt
+      UPBIT_MARKET_LIST_FILE: /app/list.txt
+      MARKET_CAP_LIMIT_KRW: ${MARKET_CAP_LIMIT_KRW:-1000000000000}
+      MARKET_CAP_USDKRW: ${MARKET_CAP_USDKRW:-1350}
+      MARKET_INCLUDE_UNKNOWN: ${MARKET_INCLUDE_UNKNOWN:-true}
+      MARKET_REFRESH_INTERVAL_SECONDS: ${MARKET_REFRESH_INTERVAL_SECONDS:-86400}
+      MARKET_REFRESH_FAILURE_RETRY_SECONDS: ${MARKET_REFRESH_FAILURE_RETRY_SECONDS:-300}
+      MARKET_REFRESH_REQUEST_TIMEOUT_SECONDS: ${MARKET_REFRESH_REQUEST_TIMEOUT_SECONDS:-20}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - ${PROJECT_ROOT:-.}/markets.txt:/app/markets.txt
+      - ${PROJECT_ROOT:-.}/list.txt:/app/list.txt
     restart: unless-stopped
     networks:
       - monitor
@@ -46,6 +82,7 @@ services:
     container_name: upbit-detector
     command: ["python", "detector.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
@@ -72,6 +109,7 @@ services:
     container_name: upbit-detector-web
     command: ["python", "detector_web.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
@@ -88,9 +126,20 @@ services:
       ALERT_COOLDOWN_SECONDS: ${ALERT_COOLDOWN_SECONDS:-300}
       DETECTOR_INTERVAL_SECONDS: ${DETECTOR_INTERVAL_SECONDS:-10}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      UPBIT_MARKETS_FILE: /app/markets.txt
+      UPBIT_MARKET_LIST_FILE: /app/list.txt
+      MARKET_CAP_LIMIT_KRW: ${MARKET_CAP_LIMIT_KRW:-1000000000000}
+      MARKET_CAP_USDKRW: ${MARKET_CAP_USDKRW:-1350}
+      MARKET_INCLUDE_UNKNOWN: ${MARKET_INCLUDE_UNKNOWN:-true}
+      MARKET_REFRESH_INTERVAL_SECONDS: ${MARKET_REFRESH_INTERVAL_SECONDS:-86400}
+      MARKET_REFRESH_FAILURE_RETRY_SECONDS: ${MARKET_REFRESH_FAILURE_RETRY_SECONDS:-300}
+      MARKET_REFRESH_REQUEST_TIMEOUT_SECONDS: ${MARKET_REFRESH_REQUEST_TIMEOUT_SECONDS:-20}
     depends_on:
       timescaledb:
         condition: service_healthy
+    volumes:
+      - ${PROJECT_ROOT:-.}/markets.txt:/app/markets.txt
+      - ${PROJECT_ROOT:-.}/list.txt:/app/list.txt
     restart: unless-stopped
     networks:
       - monitor
@@ -99,6 +148,7 @@ services:
     image: grafana/grafana:11.3.0
     container_name: grafana
     environment:
+      TZ: Asia/Seoul
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -120,6 +170,8 @@ services:
   nginx:
     image: nginx:1.27-alpine
     container_name: upbit-nginx
+    environment:
+      TZ: Asia/Seoul
     ports:
       - "80:80"
     volumes:
