@@ -1,5 +1,5 @@
 # KRW markets auto-refreshed from Upbit + CoinPaprika
-# refreshed_at: 2026-05-02T08:07:54.230478+00:00
+# refreshed_at: 2026-05-02T08:20:49.549365+00:00
 # market_cap_limit_krw: 1000000000000
 # include_unknown_markets: true
 # total: 213

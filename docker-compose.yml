@@ -5,6 +5,7 @@ services:
     ports:
       - "5432:5432"
     environment:
+      TZ: Asia/Seoul
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -27,6 +28,7 @@ services:
     container_name: upbit-collector
     command: ["python", "collector.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
@@ -50,6 +52,7 @@ services:
     container_name: upbit-market-sync
     command: ["python", "market_sync.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
@@ -79,6 +82,7 @@ services:
     container_name: upbit-detector
     command: ["python", "detector.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
@@ -105,6 +109,7 @@ services:
     container_name: upbit-detector-web
     command: ["python", "detector_web.py"]
     environment:
+      TZ: Asia/Seoul
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
@@ -143,6 +148,7 @@ services:
     image: grafana/grafana:11.3.0
     container_name: grafana
     environment:
+      TZ: Asia/Seoul
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -164,6 +170,8 @@ services:
   nginx:
     image: nginx:1.27-alpine
     container_name: upbit-nginx
+    environment:
+      TZ: Asia/Seoul
     ports:
       - "80:80"
     volumes:

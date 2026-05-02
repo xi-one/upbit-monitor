@@ -2,8 +2,20 @@ import logging
 import os
 import re
 from logging.handlers import TimedRotatingFileHandler
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from app.common.config import LoggingConfig, get_project_dir
+
+KST = ZoneInfo("Asia/Seoul")
+
+
+class KSTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=KST)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat(timespec="seconds")
 
 
 def build_logger(name: str, default_log_file: str) -> logging.Logger:
@@ -16,7 +28,7 @@ def build_logger(name: str, default_log_file: str) -> logging.Logger:
     logger.setLevel(getattr(logging, config.log_level, logging.INFO))
     logger.handlers.clear()
 
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    formatter = KSTFormatter("%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S %Z")
 
     file_handler = TimedRotatingFileHandler(
         log_file,
