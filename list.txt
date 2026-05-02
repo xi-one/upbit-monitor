@@ -150,6 +150,11 @@
     "english_name": "World Liberty Financial USD"
   },
   {
+    "market": "BTC-BLEND",
+    "korean_name": "플루언트",
+    "english_name": "Fluent"
+  },
+  {
     "market": "USDT-WLFI",
     "korean_name": "월드리버티파이낸셜",
     "english_name": "World Liberty Financial"
@@ -338,6 +343,11 @@
     "market": "BTC-DEEP",
     "korean_name": "딥북",
     "english_name": "DeepBook"
+  },
+  {
+    "market": "USDT-BLEND",
+    "korean_name": "플루언트",
+    "english_name": "Fluent"
   },
   {
     "market": "BTC-WET",
@@ -535,6 +545,11 @@
     "english_name": "Enso"
   },
   {
+    "market": "BTC-MEGA",
+    "korean_name": "메가이더",
+    "english_name": "MegaETH"
+  },
+  {
     "market": "KRW-UNI",
     "korean_name": "유니스왑",
     "english_name": "Uniswap"
@@ -670,6 +685,11 @@
     "english_name": "Bonk"
   },
   {
+    "market": "BTC-CHIP",
+    "korean_name": "유에스디에이아이",
+    "english_name": "USD.AI"
+  },
+  {
     "market": "KRW-JST",
     "korean_name": "저스트",
     "english_name": "JUST"
@@ -753,6 +773,11 @@
     "market": "USDT-LWA",
     "korean_name": "루미웨이브",
     "english_name": "LumiWave"
+  },
+  {
+    "market": "KRW-PIEVERSE",
+    "korean_name": "파이버스",
+    "english_name": "Pieverse"
   },
   {
     "market": "KRW-ALT",
@@ -1060,6 +1085,11 @@
     "english_name": "MultiversX"
   },
   {
+    "market": "KRW-BLEND",
+    "korean_name": "플루언트",
+    "english_name": "Fluent"
+  },
+  {
     "market": "USDT-AGLD",
     "korean_name": "어드벤처골드",
     "english_name": "Adventure Gold"
@@ -1133,6 +1163,11 @@
     "market": "BTC-CPOOL",
     "korean_name": "클리어풀",
     "english_name": "Clearpool"
+  },
+  {
+    "market": "KRW-CC",
+    "korean_name": "캔톤",
+    "english_name": "Canton"
   },
   {
     "market": "KRW-NEO",
@@ -1228,6 +1263,11 @@
     "market": "KRW-RVN",
     "korean_name": "레이븐코인",
     "english_name": "Ravencoin"
+  },
+  {
+    "market": "KRW-PRL",
+    "korean_name": "펄",
+    "english_name": "Perle"
   },
   {
     "market": "BTC-ZIL",
@@ -1765,6 +1805,11 @@
     "english_name": "Pump.fun"
   },
   {
+    "market": "USDT-XCN",
+    "korean_name": "오닉스코인",
+    "english_name": "Onyxcoin"
+  },
+  {
     "market": "BTC-ID",
     "korean_name": "스페이스아이디",
     "english_name": "SPACE ID"
@@ -2155,6 +2200,11 @@
     "english_name": "Safe"
   },
   {
+    "market": "USDT-CC",
+    "korean_name": "캔톤",
+    "english_name": "Canton"
+  },
+  {
     "market": "USDT-RAD",
     "korean_name": "래드웍스",
     "english_name": "Radworks"
@@ -2325,6 +2375,11 @@
     "english_name": "LayerZero"
   },
   {
+    "market": "BTC-CC",
+    "korean_name": "캔톤",
+    "english_name": "Canton"
+  },
+  {
     "market": "BTC-ACM",
     "korean_name": "AC밀란",
     "english_name": "AC Milan Fan Token"
@@ -2490,6 +2545,11 @@
     "english_name": "Plasma"
   },
   {
+    "market": "KRW-ZAMA",
+    "korean_name": "자마",
+    "english_name": "Zama"
+  },
+  {
     "market": "BTC-AUDIO",
     "korean_name": "오디우스",
     "english_name": "Audius"
@@ -2565,6 +2625,11 @@
     "english_name": "aelf"
   },
   {
+    "market": "USDT-ZAMA",
+    "korean_name": "자마",
+    "english_name": "Zama"
+  },
+  {
     "market": "USDT-ZRO",
     "korean_name": "레이어제로",
     "english_name": "LayerZero"
@@ -2580,6 +2645,11 @@
     "english_name": "AhaToken"
   },
   {
+    "market": "KRW-SOON",
+    "korean_name": "쑨",
+    "english_name": "SOON"
+  },
+  {
     "market": "KRW-STEEM",
     "korean_name": "스팀",
     "english_name": "Steem"
@@ -2588,6 +2658,11 @@
     "market": "KRW-ELSA",
     "korean_name": "헤이엘사",
     "english_name": "HeyElsa"
+  },
+  {
+    "market": "KRW-SPK",
+    "korean_name": "스파크",
+    "english_name": "Spark"
   },
   {
     "market": "BTC-APE",
@@ -2685,6 +2760,11 @@
     "english_name": "Katana"
   },
   {
+    "market": "BTC-PIEVERSE",
+    "korean_name": "파이버스",
+    "english_name": "Pieverse"
+  },
+  {
     "market": "KRW-MEW",
     "korean_name": "캣인어독스월드",
     "english_name": "cat in a dogs world"
@@ -2773,6 +2853,11 @@
     "market": "USDT-KERNEL",
     "korean_name": "커널다오",
     "english_name": "KernelDAO"
+  },
+  {
+    "market": "USDT-MEGA",
+    "korean_name": "메가이더",
+    "english_name": "MegaETH"
   },
   {
     "market": "KRW-ORCA",
@@ -2915,6 +3000,11 @@
     "english_name": "Euler"
   },
   {
+    "market": "USDT-CHIP",
+    "korean_name": "유에스디에이아이",
+    "english_name": "USD.AI"
+  },
+  {
     "market": "USDT-ESP",
     "korean_name": "에스프레소",
     "english_name": "Espresso"
@@ -2945,6 +3035,11 @@
     "english_name": "MovieBloc"
   },
   {
+    "market": "BTC-ZAMA",
+    "korean_name": "자마",
+    "english_name": "Zama"
+  },
+  {
     "market": "BTC-ERA",
     "korean_name": "칼데라",
     "english_name": "Caldera"
@@ -2963,6 +3058,11 @@
     "market": "KRW-FLUID",
     "korean_name": "플루이드",
     "english_name": "Fluid"
+  },
+  {
+    "market": "USDT-PIEVERSE",
+    "korean_name": "파이버스",
+    "english_name": "Pieverse"
   },
   {
     "market": "USDT-MOVE",
@@ -3120,6 +3220,11 @@
     "english_name": "Momentum"
   },
   {
+    "market": "KRW-CHIP",
+    "korean_name": "유에스디에이아이",
+    "english_name": "USD.AI"
+  },
+  {
     "market": "KRW-ZORA",
     "korean_name": "조라",
     "english_name": "Zora"
@@ -3130,6 +3235,11 @@
     "english_name": "Berachain"
   },
   {
+    "market": "KRW-XCN",
+    "korean_name": "오닉스코인",
+    "english_name": "Onyxcoin"
+  },
+  {
     "market": "USDT-EDGE",
     "korean_name": "디피니티브",
     "english_name": "Definitive"
@@ -3138,6 +3248,11 @@
     "market": "KRW-GAS",
     "korean_name": "가스",
     "english_name": "GAS"
+  },
+  {
+    "market": "KRW-MEGA",
+    "korean_name": "메가이더",
+    "english_name": "MegaETH"
   },
   {
     "market": "KRW-MNT",
@@ -3260,6 +3375,11 @@
     "english_name": "Ravencoin"
   },
   {
+    "market": "USDT-PRL",
+    "korean_name": "펄",
+    "english_name": "Perle"
+  },
+  {
     "market": "BTC-NMR",
     "korean_name": "뉴메레르",
     "english_name": "Numeraire"
@@ -3313,6 +3433,11 @@
     "market": "BTC-HBD",
     "korean_name": "하이브달러",
     "english_name": "Hive Dollar"
+  },
+  {
+    "market": "BTC-PRL",
+    "korean_name": "펄",
+    "english_name": "Perle"
   },
   {
     "market": "KRW-HOLO",

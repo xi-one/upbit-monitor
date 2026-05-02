@@ -107,6 +107,49 @@ SET
 WHERE rule_key = 'avg_1h_trade_value';
 """
 
+MONITORED_MARKETS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS monitored_markets (
+    market TEXT PRIMARY KEY,
+    korean_name TEXT NOT NULL,
+    english_name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    market_cap_krw DOUBLE PRECISION NULL,
+    market_cap_source TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+"""
+
+MONITORED_MARKETS_SYMBOL_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_monitored_markets_symbol
+ON monitored_markets (symbol);
+"""
+
+MARKET_SYNC_STATUS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS market_sync_status (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    last_refreshed_at TIMESTAMPTZ NULL,
+    market_count INTEGER NOT NULL DEFAULT 0,
+    refresh_version BIGINT NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+"""
+
+MARKET_SYNC_STATUS_SEED_SQL = """
+INSERT INTO market_sync_status (id, market_count, refresh_version, last_error)
+VALUES (1, 0, 0, '')
+ON CONFLICT (id) DO NOTHING;
+"""
+
+
+def ensure_market_sync_schema(conn):
+    with conn.cursor() as cursor:
+        cursor.execute(MONITORED_MARKETS_TABLE_SQL)
+        cursor.execute(MONITORED_MARKETS_SYMBOL_INDEX_SQL)
+        cursor.execute(MARKET_SYNC_STATUS_TABLE_SQL)
+        cursor.execute(MARKET_SYNC_STATUS_SEED_SQL)
+    conn.commit()
+
 
 def ensure_runtime_schema(conn, defaults, default_rules):
     with conn.cursor() as cursor:
@@ -188,3 +231,4 @@ def ensure_runtime_schema(conn, defaults, default_rules):
                     ),
                 )
     conn.commit()
+    ensure_market_sync_schema(conn)

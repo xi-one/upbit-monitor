@@ -1,5 +1,4 @@
 import json
-import os
 import signal
 import sys
 import time
@@ -11,6 +10,8 @@ from psycopg2.extras import execute_values
 from app.common.config import CollectorConfig, DbConfig, resolve_path
 from app.common.db import create_connection
 from app.common.logging import build_logger
+from app.common.schema import ensure_market_sync_schema
+from app.markets.service import fetch_market_refresh_version, fetch_monitored_markets
 
 logger = build_logger("upbit_collector", "collector.log")
 conn = create_connection(DbConfig())
@@ -20,9 +21,18 @@ current_batch_second = None
 shutdown_requested = False
 DEFAULT_MARKETS = ["KRW-BTC", "KRW-ETH"]
 collector_config = CollectorConfig()
+subscribed_refresh_version = 0
+last_refresh_version_check_at = 0.0
 
 
 def load_markets():
+    try:
+        markets = fetch_monitored_markets(conn)
+        if markets:
+            return markets
+    except Exception as exc:
+        logger.warning("failed to read monitored markets from DB: %s (falling back to file)", exc)
+
     markets_file = resolve_path(collector_config.markets_file)
     try:
         with open(markets_file, "r", encoding="utf-8") as file:
@@ -79,7 +89,7 @@ def insert_batch():
 
 
 def on_message(ws, message):
-    global batch, current_batch_second
+    global batch, current_batch_second, last_refresh_version_check_at
     try:
         if isinstance(message, bytes):
             message = message.decode("utf-8")
@@ -101,12 +111,26 @@ def on_message(ws, message):
             data["ask_bid"],
         )
         batch.append(row)
+        current_monotonic = time.monotonic()
+        if current_monotonic - last_refresh_version_check_at >= collector_config.refresh_check_interval_seconds:
+            last_refresh_version_check_at = current_monotonic
+            latest_refresh_version = fetch_market_refresh_version(conn)
+            if latest_refresh_version > subscribed_refresh_version:
+                logger.info(
+                    "market refresh detected: version %s -> %s, reconnecting collector",
+                    subscribed_refresh_version,
+                    latest_refresh_version,
+                )
+                ws.close()
     except Exception as exc:
         logger.exception("processing error: %s", exc)
 
 
 def on_open(ws):
+    global subscribed_refresh_version, last_refresh_version_check_at
     markets = load_markets()
+    subscribed_refresh_version = fetch_market_refresh_version(conn)
+    last_refresh_version_check_at = time.monotonic()
     logger.info("collector started: subscribing %d markets", len(markets))
     subscribe = [
         {"ticket": "test"},
@@ -143,6 +167,7 @@ def handle_shutdown(signum, frame):
 def run():
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
+    ensure_market_sync_schema(conn)
 
     while True:
         try:
