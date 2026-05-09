@@ -368,7 +368,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 second', time) AS \"time\",\n  CASE\n    WHEN side = 'BID' THEN '매수'\n    ELSE '매도'\n  END AS metric,\n  SUM(trade_value) AS value\nFROM trades\nWHERE $__timeFilter(time)\n  AND market = ${market:sqlstring}\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "rawSql": "SELECT\n  bucket AS \"time\",\n  CASE\n    WHEN side = 'BID' THEN '매수'\n    ELSE '매도'\n  END AS metric,\n  value_krw AS value\nFROM trades_1s\nWHERE $__timeFilter(bucket)\n  AND market = ${market:sqlstring}\nORDER BY 1, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -442,14 +442,14 @@
           "type": "postgres",
           "uid": "timescale"
         },
-        "definition": "SELECT DISTINCT market FROM trades ORDER BY 1",
+        "definition": "SELECT market FROM monitored_markets ORDER BY 1",
         "hide": 0,
         "includeAll": false,
         "label": "Market",
         "multi": false,
         "name": "market",
         "options": [],
-        "query": "SELECT DISTINCT market FROM trades ORDER BY 1",
+        "query": "SELECT market FROM monitored_markets ORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
