@@ -1,3 +1,8 @@
+# market list
+list.txt
+markets.txt
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
