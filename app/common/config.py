@@ -60,6 +60,16 @@ class DetectorConfig:
 
 
 @dataclass(frozen=True)
+class DipBuyingConfig:
+    price_drop_pct: float = float(os.getenv("DIP_ALERT_PRICE_DROP_PCT", "3.0"))
+    lookback_minutes: int = int(os.getenv("DIP_ALERT_LOOKBACK_MINUTES", "5"))
+    ask_trade_value_min: float = float(os.getenv("DIP_ALERT_ASK_TRADE_VALUE_MIN", "20000000"))
+    cooldown_seconds: int = int(os.getenv("DIP_ALERT_COOLDOWN_SECONDS", "300"))
+    interval_seconds: int = int(os.getenv("DIP_DETECTOR_INTERVAL_SECONDS", "10"))
+    webhook_url: str = os.getenv("DIP_ALERT_WEBHOOK_URL", "").strip()
+
+
+@dataclass(frozen=True)
 class DetectorWebConfig:
     username: str = os.getenv("DETECTOR_WEB_USERNAME", "admin")
     password: str = os.getenv("DETECTOR_WEB_PASSWORD", "change-me")
