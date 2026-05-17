@@ -13,7 +13,7 @@ def _build_embed_fields(strategy_key, row):
             {"name": "가격 변동률", "value": f"{row['price_change_pct']:.2f}%", "inline": True},
             {
                 "name": "최근 5분 내 1초 최대 매수 거래대금",
-                "value": f"{row['buy_1s_bid_trade_value']:.0f} KRW",
+                "value": f"{row['buy_1s_bid_trade_value']:,.0f}원",
                 "inline": False,
             },
         ]
@@ -21,9 +21,9 @@ def _build_embed_fields(strategy_key, row):
     if strategy_key == "dip_buying":
         return [
             {"name": "가격 하락률", "value": f"{row['price_drop_pct']:.2f}%", "inline": True},
-            {"name": "시작가", "value": f"{row['first_price']:.0f} KRW", "inline": True},
-            {"name": "현재가", "value": f"{row['last_price']:.0f} KRW", "inline": True},
-            {"name": "누적 매도 거래대금", "value": f"{row['ask_trade_value']:.0f} KRW", "inline": False},
+            {"name": "시작가", "value": f"{row['first_price']:,.0f}원", "inline": True},
+            {"name": "현재가", "value": f"{row['last_price']:,.0f}원", "inline": True},
+            {"name": "누적 매도 거래대금", "value": f"{row['ask_trade_value']:,.0f}원", "inline": False},
         ]
 
     return []
