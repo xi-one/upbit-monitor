@@ -1,12 +1,11 @@
-import json
 import os
 import re
 import queue
 import threading
-from pathlib import Path
 
 import discord
 import pyttsx3
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,10 +15,7 @@ CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 ONLY_BOT_MESSAGES = os.getenv("DISCORD_TTS_ONLY_BOT_MESSAGES", "true").lower() in {"1", "true", "yes", "on"}
 USERNAME_PREFIX = os.getenv("DISCORD_TTS_USERNAME_PREFIX", "false").lower() in {"1", "true", "yes", "on"}
 WINDOWS_RATE = int(os.getenv("DISCORD_TTS_WINDOWS_RATE", "180"))
-MARKET_LIST_FILE = os.getenv(
-    "DISCORD_TTS_MARKET_LIST_FILE",
-    str(Path(__file__).resolve().parents[1] / "list.txt"),
-).strip()
+UPBIT_MARKET_ALL_URL = os.getenv("UPBIT_MARKET_ALL_URL", "https://api.upbit.com/v1/market/all?is_details=false").strip()
 
 MARKET_PATTERN = re.compile(r"\b([A-Z]{2,5}-[A-Z0-9]{2,10})\b")
 
@@ -31,11 +27,10 @@ tts_queue: queue.Queue[str] = queue.Queue()
 
 
 def load_market_name_map() -> dict[str, str]:
-    path = Path(MARKET_LIST_FILE)
-    if not path.exists():
-        return {}
     try:
-        rows = json.loads(path.read_text())
+        response = requests.get(UPBIT_MARKET_ALL_URL, timeout=10)
+        response.raise_for_status()
+        rows = response.json()
     except Exception:
         return {}
 

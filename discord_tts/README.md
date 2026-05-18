@@ -52,9 +52,8 @@
   - 봇 메시지만 읽고 싶을 때
 - `DISCORD_TTS_USERNAME_PREFIX=true`
   - 읽을 때 작성자 이름도 같이 읽고 싶을 때
-- `DISCORD_TTS_MARKET_LIST_FILE=...`
-  - 종목 코드와 한글명을 매핑할 JSON 파일 경로
-  - 비워두면 프로젝트 루트의 `list.txt`를 사용
+- `UPBIT_MARKET_ALL_URL=...`
+  - 시작 시 종목명을 메모리에 불러올 업비트 API URL
 - `DISCORD_TTS_MAC_VOICE=Yuna`
   - macOS `say` 음성 지정
 - `DISCORD_TTS_WINDOWS_RATE=180`
@@ -101,7 +100,7 @@ python windows_discord_tts.py
 ## 종목명 읽기 방식
 
 - 메시지에 `KRW-INJ` 같은 종목 코드가 있으면
-- `list.txt`에서 한글명을 찾아
+- 실행 시작 시 업비트 API에서 불러온 종목명 맵에서 한글명을 찾아
 - `인젝티브`처럼 읽는다
 
 매핑을 찾지 못하면 기존처럼 종목 코드를 그대로 읽는다.
