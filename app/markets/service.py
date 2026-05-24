@@ -1,11 +1,10 @@
-import json
 import time
 from datetime import datetime, timezone
 
 import requests
 from psycopg2.extras import RealDictCursor, execute_values
 
-from app.common.config import DbConfig, MarketSyncConfig, resolve_path
+from app.common.config import DbConfig, MarketSyncConfig
 from app.common.db import create_connection
 from app.common.logging import build_logger
 from app.common.schema import ensure_market_sync_schema
@@ -153,23 +152,6 @@ def _filter_upbit_markets(upbit_markets: list[dict], market_cap_lookup: dict[str
     return filtered_markets
 
 
-def _write_market_files(config: MarketSyncConfig, upbit_markets: list[dict], filtered_markets: list[dict]):
-    markets_file = resolve_path(config.markets_file)
-    market_list_file = resolve_path(config.market_list_file)
-
-    with open(markets_file, "w", encoding="utf-8") as file:
-        file.write("# KRW markets auto-refreshed from Upbit + CoinPaprika\n")
-        file.write(f"# refreshed_at: {datetime.now(timezone.utc).isoformat()}\n")
-        file.write(f"# market_cap_limit_krw: {int(config.market_cap_limit_krw)}\n")
-        file.write(f"# include_unknown_markets: {str(config.include_unknown_markets).lower()}\n")
-        file.write(f"# total: {len(filtered_markets)}\n")
-        for item in filtered_markets:
-            file.write(f"{item['market']}\n")
-
-    with open(market_list_file, "w", encoding="utf-8") as file:
-        json.dump(upbit_markets, file, ensure_ascii=False, indent=2)
-
-
 def refresh_market_universe(conn=None, config: MarketSyncConfig | None = None) -> dict:
     close_conn = False
     if conn is None:
@@ -212,8 +194,6 @@ def refresh_market_universe(conn=None, config: MarketSyncConfig | None = None) -
             )
             refresh_version = cursor.fetchone()[0]
         conn.commit()
-        _write_market_files(config, upbit_markets, filtered_markets)
-
         result = {
             "ok": True,
             "refreshed_at": refreshed_at,

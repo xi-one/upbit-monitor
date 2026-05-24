@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import websocket
 from psycopg2.extras import execute_values
 
-from app.common.config import CollectorConfig, DbConfig, resolve_path
+from app.common.config import CollectorConfig, DbConfig
 from app.common.db import create_connection
 from app.common.logging import build_logger
 from app.common.schema import ensure_market_sync_schema
@@ -31,37 +31,10 @@ def load_markets():
         if markets:
             return markets
     except Exception as exc:
-        logger.warning("failed to read monitored markets from DB: %s (falling back to file)", exc)
-
-    markets_file = resolve_path(collector_config.markets_file)
-    try:
-        with open(markets_file, "r", encoding="utf-8") as file:
-            markets = []
-            for line in file:
-                symbol = line.strip()
-                if not symbol or symbol.startswith("#"):
-                    continue
-                markets.append(symbol)
-    except FileNotFoundError:
-        logger.warning("markets file not found: %s (using defaults)", markets_file)
+        logger.warning("failed to read monitored markets from DB: %s (using defaults)", exc)
         return DEFAULT_MARKETS
-    except Exception as exc:
-        logger.warning("failed to read markets file: %s (%s) (using defaults)", markets_file, exc)
-        return DEFAULT_MARKETS
-
-    unique = []
-    seen = set()
-    for market in markets:
-        if market in seen:
-            continue
-        seen.add(market)
-        unique.append(market)
-
-    if not unique:
-        logger.warning("markets file is empty: %s (using defaults)", markets_file)
-        return DEFAULT_MARKETS
-
-    return unique
+    logger.warning("monitored markets table is empty (using defaults)")
+    return DEFAULT_MARKETS
 
 
 def insert_batch():
