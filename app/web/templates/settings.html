@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>감지기 설정</title>
+    <title>{{ strategy_definition.name }} 관리자</title>
     <style>
       :root {
         --bg: #f4f1e8;
@@ -14,6 +14,7 @@
         --accent: #0f766e;
         --accent-soft: #d7f3ee;
         --accent-strong: #115e59;
+        --accent-alt: #1d4ed8;
         --off: #b45309;
         --off-soft: #fff7ed;
       }
@@ -26,8 +27,8 @@
           linear-gradient(180deg, #f6f3ea 0%, #efe7d8 100%);
         color: var(--ink);
       }
-      .page { max-width: 1180px; margin: 0 auto; padding: 40px 20px 56px; }
-      .hero { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 28px; }
+      .page { max-width: 1180px; margin: 0 auto; padding: 36px 20px 56px; }
+      .hero { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 22px; }
       h1 { margin: 0 0 10px; font-size: 36px; letter-spacing: -0.03em; }
       p.meta { margin: 0; color: var(--muted); max-width: 760px; line-height: 1.6; }
       .stamp {
@@ -46,11 +47,42 @@
         margin-bottom: 8px;
       }
       .stamp .value { font-size: 15px; font-weight: 600; }
+      .tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+      }
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 999px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: rgba(255, 253, 248, 0.85);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .tab.active {
+        background: var(--accent-strong);
+        color: white;
+        border-color: var(--accent-strong);
+      }
       .saved {
-        margin-bottom: 24px;
+        margin-bottom: 18px;
         background: #ecfdf5;
         border: 1px solid #10b981;
         color: #065f46;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+      .error {
+        margin-bottom: 18px;
+        background: #fff1f2;
+        border: 1px solid #ef4444;
+        color: #991b1b;
         border-radius: 14px;
         padding: 12px 14px;
       }
@@ -73,6 +105,7 @@
         min-height: 118px;
       }
       .stat.highlight { background: linear-gradient(180deg, #f0fffb 0%, var(--accent-soft) 100%); border-color: #9adfd3; }
+      .stat.alt { background: linear-gradient(180deg, #eef4ff 0%, #dbeafe 100%); border-color: #93c5fd; }
       .stat.alert-off { background: linear-gradient(180deg, #fffaf1 0%, var(--off-soft) 100%); border-color: #f0caa6; }
       .label { display: block; margin-bottom: 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
       .value { display: block; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
@@ -91,7 +124,7 @@
       .rule-list { display: grid; gap: 12px; }
       .rule-row {
         display: grid;
-        grid-template-columns: 180px 90px 90px 140px 1fr;
+        grid-template-columns: 220px 90px 90px 140px 1fr;
         gap: 12px;
         align-items: center;
         padding: 14px 16px;
@@ -137,7 +170,14 @@
       .rule-title { font-weight: 700; font-size: 16px; }
       .rule-description { color: var(--muted); font-size: 13px; margin-top: 4px; }
       .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-      .inline-grid { display: grid; grid-template-columns: 140px 1fr; gap: 12px; }
+      .inline-grid {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 12px;
+      }
+      .inline-grid.single {
+        grid-template-columns: 1fr;
+      }
       .checkbox-row { display: flex; gap: 10px; align-items: center; }
       .actions {
         display: flex;
@@ -156,6 +196,11 @@
         font-weight: 600;
         cursor: pointer;
       }
+      code {
+        padding: 2px 6px;
+        border-radius: 8px;
+        background: rgba(15, 118, 110, 0.08);
+      }
       @media (max-width: 960px) {
         .hero { flex-direction: column; }
         .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -164,7 +209,7 @@
       }
       @media (max-width: 640px) {
         .stats { grid-template-columns: 1fr; }
-        .inline-grid { grid-template-columns: 1fr; }
+        .inline-grid, .inline-grid.single { grid-template-columns: 1fr; }
         .actions { flex-direction: column; align-items: flex-start; }
         .rule-head { flex-direction: column; align-items: flex-start; }
       }
@@ -174,43 +219,49 @@
     <div class="page">
       <div class="hero">
         <div>
-          <h1>감지기 관리자</h1>
-          <p class="meta">전역 감지기 동작과 개별 규칙을 분리해서 관리합니다. 나중에 새 조건을 추가할 때는 <code>rule_key</code>만 등록하면 같은 UI와 평가 구조를 그대로 사용할 수 있습니다.</p>
+          <h1>{{ strategy_definition.name }} 관리자</h1>
+          <p class="meta">{{ strategy_definition.description }} 각 전략은 별도 웹훅과 규칙 집합을 가지며, 다른 채널로 독립 알림을 보낼 수 있습니다.</p>
         </div>
         <div class="stamp">
-          <span class="label">최신 스냅샷</span>
-          <span class="value">{{ settings.updated_at if settings.updated_at else "표시 불가" }}</span>
+          <span class="label">최신 전략 설정</span>
+          <span class="value">{{ strategy.updated_at if strategy.updated_at else "표시 불가" }}</span>
         </div>
+      </div>
+
+      <div class="tabs">
+        {% for tab in tabs %}
+        <a class="tab {% if tab.strategy_key == current_strategy_key %}active{% endif %}" href="{{ tab.path }}">{{ tab.name }}</a>
+        {% endfor %}
       </div>
 
       {% if saved %}<div class="saved">설정이 저장되었습니다.</div>{% endif %}
       {% if markets_refreshed %}<div class="saved">종목 목록을 새로고침했습니다.</div>{% endif %}
-      {% if market_refresh_error %}<div class="saved" style="background:#fff1f2;border-color:#ef4444;color:#991b1b;">종목 목록 새로고침에 실패했습니다: {{ market_refresh_error }}</div>{% endif %}
+      {% if market_refresh_error %}<div class="error">종목 목록 새로고침에 실패했습니다: {{ market_refresh_error }}</div>{% endif %}
 
       <section class="section">
-        <span class="kicker">개요</span>
-        <h2>현재 실행 중인 설정</h2>
-        <p>감지기는 매 평가 루프마다 가장 최신 설정 스냅샷과 그에 연결된 규칙 목록을 읽습니다.</p>
+        <span class="kicker">전략</span>
+        <h2>현재 실행 중인 {{ strategy_definition.name }} 설정</h2>
+        <p>전략별로 웹훅을 분리해 다른 Discord 방이나 다른 수신 경로로 따로 알림을 보낼 수 있습니다.</p>
         <div class="stats">
-          <div class="stat {% if settings.enabled %}highlight{% else %}alert-off{% endif %}">
-            <span class="label">감지기 상태</span>
-            <span class="value">{{ "활성" if settings.enabled else "비활성" }}</span>
-            <span class="hint">알림 조건 평가 자체를 켜거나 끄는 전체 스위치입니다.</span>
+          <div class="stat {% if strategy.enabled %}highlight{% else %}alert-off{% endif %}">
+            <span class="label">전략 상태</span>
+            <span class="value">{{ "활성" if strategy.enabled else "비활성" }}</span>
+            <span class="hint">이 전략 자체의 평가 루프를 켜거나 끕니다.</span>
           </div>
-          <div class="stat {% if settings.webhook_enabled %}highlight{% else %}alert-off{% endif %}">
+          <div class="stat {% if strategy.webhook_enabled %}alt{% else %}alert-off{% endif %}">
             <span class="label">웹훅 전송</span>
-            <span class="value">{{ "활성" if settings.webhook_enabled else "비활성" }}</span>
-            <span class="hint">알림 전송을 꺼도 DB에는 이벤트 기록을 남길 수 있습니다.</span>
+            <span class="value">{{ "활성" if strategy.webhook_enabled else "비활성" }}</span>
+            <span class="hint">이 전략 전용 웹훅입니다. 다른 전략과 독립적으로 동작합니다.</span>
           </div>
           <div class="stat">
             <span class="label">쿨다운</span>
-            <span class="value">{{ settings.cooldown_seconds }}s</span>
-            <span class="hint">같은 종목의 중복 알림을 일정 시간 동안 막습니다.</span>
+            <span class="value">{{ strategy.cooldown_seconds }}s</span>
+            <span class="hint">같은 종목 재알림을 막는 시간입니다.</span>
           </div>
           <div class="stat">
             <span class="label">평가 주기</span>
-            <span class="value">{{ settings.interval_seconds }}s</span>
-            <span class="hint">시장 지표를 다시 계산하는 주기입니다.</span>
+            <span class="value">{{ strategy.interval_seconds }}s</span>
+            <span class="hint">이 전략만의 계산 주기입니다.</span>
           </div>
         </div>
       </section>
@@ -218,7 +269,7 @@
       <section class="section">
         <span class="kicker">종목 목록</span>
         <h2>모니터링 종목 새로고침</h2>
-        <p>업비트 전체 마켓과 시가총액 기준을 다시 조회해 모니터링 종목 목록을 갱신합니다. collector는 새 버전을 감지하면 자동으로 재연결해 새 목록으로 다시 구독합니다.</p>
+        <p>새 상장 종목이나 종목 구성 변경을 즉시 반영할 때 사용합니다. 모든 전략이 공통으로 이 목록을 사용합니다.</p>
         <div class="stats">
           <div class="stat highlight">
             <span class="label">마지막 새로고침</span>
@@ -241,9 +292,9 @@
             <span class="hint">{{ market_status.last_error if market_status and market_status.last_error else "최근 새로고침 오류가 없습니다." }}</span>
           </div>
         </div>
-        <form method="post" action="/detector-admin/refresh-markets" style="margin-top:18px;">
+        <form method="post" action="/detector-admin/refresh-markets?strategy={{ current_strategy_key }}" style="margin-top:18px;">
           <div class="actions">
-            <div class="note">새 상장 종목을 즉시 반영해야 할 때 수동으로 실행합니다.</div>
+            <div class="note">전략 페이지와 무관하게 공통 종목 목록만 갱신합니다.</div>
             <button type="submit">종목 목록 새로고침</button>
           </div>
         </form>
@@ -251,8 +302,8 @@
 
       <section class="section">
         <span class="kicker">규칙</span>
-        <h2>현재 규칙 목록</h2>
-        <p>각 규칙은 데이터로 저장됩니다. 나중에 조건이 늘어나도 상위 설정 테이블 구조를 다시 바꾸지 않아도 됩니다.</p>
+        <h2>{{ strategy_definition.name }} 현재 규칙</h2>
+        <p>전략별로 독립된 규칙 집합을 사용합니다. 하따 감지는 별도 웹훅과 별도 조건 세트로 운영됩니다.</p>
         <div class="rule-list">
           {% for rule in rules %}
           <div class="rule-row">
@@ -265,7 +316,7 @@
               </div>
             </div>
             <div><span class="pill {{ 'on' if rule.enabled else 'off' }}">{{ "활성" if rule.enabled else "비활성" }}</span></div>
-            <div><strong>{{ rule.operator }}</strong></div>
+            <div><strong>{{ rule.operator if rule.show_operator else "설정값" }}</strong></div>
             <div>
               <strong>{{ rule.threshold_value }}</strong>
               {% if rule.threshold_unit %}
@@ -280,40 +331,40 @@
 
       <section class="section">
         <span class="kicker">수정</span>
-        <h2>새 설정 스냅샷 저장</h2>
-        <p>저장하면 전역 설정 1개와 규칙별 하위 row가 함께 기록됩니다. 감지기는 가장 최신 스냅샷을 자동으로 사용합니다.</p>
-        <form method="post" action="/detector-admin/save">
+        <h2>{{ strategy_definition.name }} 설정 저장</h2>
+        <p>이 페이지는 <code>{{ current_strategy_key }}</code> 전략만 수정합니다. 다른 전략의 설정이나 웹훅은 건드리지 않습니다.</p>
+        <form method="post" action="/detector-admin/{{ 'dip-buying' if current_strategy_key == 'dip_buying' else 'spike' }}">
           <div class="form-grid">
             <div class="field">
-              <label>감지기 활성화</label>
-              <span>전체 알림 평가를 켜거나 끕니다.</span>
+              <label>전략 활성화</label>
+              <span>이 전략의 평가 루프를 켜거나 끕니다.</span>
               <div class="checkbox-row">
-                <input id="enabled" name="enabled" type="checkbox" {% if settings.enabled %}checked{% endif %}>
-                <label for="enabled">감지기 사용</label>
+                <input id="enabled" name="enabled" type="checkbox" {% if strategy.enabled %}checked{% endif %}>
+                <label for="enabled">전략 사용</label>
               </div>
             </div>
             <div class="field">
               <label>웹훅 활성화</label>
-              <span>DB 기록은 유지하면서 외부 알림 전송만 끌 수 있습니다.</span>
+              <span>DB 기록은 유지하면서 이 전략의 외부 알림만 끌 수 있습니다.</span>
               <div class="checkbox-row">
-                <input id="webhook_enabled" name="webhook_enabled" type="checkbox" {% if settings.webhook_enabled %}checked{% endif %}>
-                <label for="webhook_enabled">알림 전송 사용</label>
+                <input id="webhook_enabled" name="webhook_enabled" type="checkbox" {% if strategy.webhook_enabled %}checked{% endif %}>
+                <label for="webhook_enabled">웹훅 전송 사용</label>
               </div>
             </div>
             <div class="field">
               <label for="cooldown_seconds">쿨다운 초</label>
-              <span>같은 종목에 대한 반복 알림을 이 시간 동안 막습니다.</span>
-              <input id="cooldown_seconds" name="cooldown_seconds" type="number" step="1" value="{{ settings.cooldown_seconds }}" required>
+              <span>같은 종목 반복 알림 방지 시간입니다.</span>
+              <input id="cooldown_seconds" name="cooldown_seconds" type="number" step="1" value="{{ strategy.cooldown_seconds }}" required>
             </div>
             <div class="field">
               <label for="interval_seconds">감지기 주기 초</label>
-              <span>시장 지표를 다시 계산하는 루프 주기입니다.</span>
-              <input id="interval_seconds" name="interval_seconds" type="number" step="1" value="{{ settings.interval_seconds }}" required>
+              <span>이 전략만의 계산 주기입니다.</span>
+              <input id="interval_seconds" name="interval_seconds" type="number" step="1" value="{{ strategy.interval_seconds }}" required>
             </div>
             <div class="field full">
-              <label for="webhook_url">웹훅 URL</label>
-              <span>웹훅 전송이 켜져 있을 때 사용하는 알림 대상 주소입니다.</span>
-              <input id="webhook_url" name="webhook_url" type="text" value="{{ settings.webhook_url }}" required>
+              <label for="webhook_url">전략 전용 웹훅 URL</label>
+              <span>이 전략에서만 사용하는 Discord 등 외부 알림 대상입니다.</span>
+              <input id="webhook_url" name="webhook_url" type="text" value="{{ strategy.webhook_url }}" required>
             </div>
           </div>
 
@@ -334,7 +385,8 @@
                   활성화
                 </label>
               </div>
-              <div class="inline-grid">
+              <div class="inline-grid {% if not rule.show_operator %}single{% endif %}">
+                {% if rule.show_operator %}
                 <div class="field">
                   <label for="{{ rule.rule_key }}__operator">비교 연산자</label>
                   <select id="{{ rule.rule_key }}__operator" name="{{ rule.rule_key }}__operator">
@@ -343,6 +395,7 @@
                     {% endfor %}
                   </select>
                 </div>
+                {% endif %}
                 <div class="field">
                   <label for="{{ rule.rule_key }}__threshold">임계치</label>
                   {% if rule.threshold_unit %}
@@ -356,7 +409,7 @@
           </div>
 
           <div class="actions">
-            <div class="note">앞으로 새 조건이 필요하면 rule definition과 evaluator만 추가해서 같은 방식으로 확장할 수 있습니다.</div>
+            <div class="note">전략을 추가할 때는 DB 스키마를 다시 바꾸지 않고 <code>rule_key</code>와 evaluator만 늘리는 구조를 기준으로 설계했습니다.</div>
             <button type="submit">설정 저장</button>
           </div>
         </form>

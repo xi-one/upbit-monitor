@@ -332,6 +332,29 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "가격"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
           }
         ]
       },
@@ -368,7 +391,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "SELECT\n  bucket AS \"time\",\n  CASE\n    WHEN side = 'BID' THEN '매수'\n    ELSE '매도'\n  END AS metric,\n  value_krw AS value\nFROM trades_1s\nWHERE $__timeFilter(bucket)\n  AND market = ${market:sqlstring}\nORDER BY 1, 2;",
+          "rawSql": "WITH side_values AS (\n  SELECT\n    bucket AS \"time\",\n    CASE\n      WHEN side = 'BID' THEN '매수'\n      ELSE '매도'\n    END AS metric,\n    value_krw AS value\n  FROM trades_1s\n  WHERE $__timeFilter(bucket)\n    AND market = ${market:sqlstring}\n), closing_prices AS (\n  SELECT\n    time_bucket('1 second', time) AS \"time\",\n    '가격' AS metric,\n    last(price, time) AS value\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market = ${market:sqlstring}\n  GROUP BY 1\n)\nSELECT * FROM side_values\nUNION ALL\nSELECT * FROM closing_prices\nORDER BY 1, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -390,7 +413,7 @@
           "timeColumn": "time"
         }
       ],
-      "title": "선택 종목 매수/매도 1초 거래대금",
+      "title": "선택 종목 매수/매도 1초 거래대금 + 가격",
       "type": "timeseries"
     }
   ],
