@@ -1,3 +1,4 @@
 discord.py==2.5.2
 python-dotenv==1.0.1
 pyttsx3==2.98
+requests==2.32.3
