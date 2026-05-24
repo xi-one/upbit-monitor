@@ -7,7 +7,7 @@ from psycopg2.extras import RealDictCursor
 
 from app.common.config import DbConfig, DetectorWebConfig
 from app.common.db import create_connection
-from app.common.schema import ensure_market_sync_schema, ensure_runtime_schema
+from app.common.schema import ensure_market_sync_schema
 from app.detector.queries import (
     DELETE_STRATEGY_RULES_SQL,
     FETCH_STRATEGIES_SQL,
@@ -22,8 +22,6 @@ from app.markets.service import fetch_market_sync_status, refresh_market_univers
 app = Flask(__name__, template_folder="templates")
 db_conn = create_connection(DbConfig())
 db_conn.autocommit = True
-ensure_runtime_schema(db_conn)
-ensure_market_sync_schema(db_conn)
 web_config = DetectorWebConfig()
 TEN_MILLION_KRW = 10_000_000
 TEN_MILLION_RULE_KEYS = {"buy_1s_bid_trade_value", "ask_trade_value"}

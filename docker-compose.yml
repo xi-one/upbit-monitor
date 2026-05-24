@@ -34,14 +34,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      UPBIT_MARKETS_FILE: /app/markets.txt
       MARKET_REFRESH_CHECK_INTERVAL_SECONDS: ${MARKET_REFRESH_CHECK_INTERVAL_SECONDS:-5}
     depends_on:
       timescaledb:
         condition: service_healthy
-    volumes:
-      - ${PROJECT_ROOT:-.}/markets.txt:/app/markets.txt
-      - ${PROJECT_ROOT:-.}/list.txt:/app/list.txt
     restart: unless-stopped
     networks:
       - monitor
@@ -58,8 +54,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-upbit}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      UPBIT_MARKETS_FILE: /app/markets.txt
-      UPBIT_MARKET_LIST_FILE: /app/list.txt
       MARKET_CAP_LIMIT_KRW: ${MARKET_CAP_LIMIT_KRW:-1000000000000}
       MARKET_CAP_USDKRW: ${MARKET_CAP_USDKRW:-1350}
       MARKET_INCLUDE_UNKNOWN: ${MARKET_INCLUDE_UNKNOWN:-true}
@@ -69,9 +63,6 @@ services:
     depends_on:
       timescaledb:
         condition: service_healthy
-    volumes:
-      - ${PROJECT_ROOT:-.}/markets.txt:/app/markets.txt
-      - ${PROJECT_ROOT:-.}/list.txt:/app/list.txt
     restart: unless-stopped
     networks:
       - monitor
@@ -126,8 +117,6 @@ services:
       ALERT_COOLDOWN_SECONDS: ${ALERT_COOLDOWN_SECONDS:-300}
       DETECTOR_INTERVAL_SECONDS: ${DETECTOR_INTERVAL_SECONDS:-10}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
-      UPBIT_MARKETS_FILE: /app/markets.txt
-      UPBIT_MARKET_LIST_FILE: /app/list.txt
       MARKET_CAP_LIMIT_KRW: ${MARKET_CAP_LIMIT_KRW:-1000000000000}
       MARKET_CAP_USDKRW: ${MARKET_CAP_USDKRW:-1350}
       MARKET_INCLUDE_UNKNOWN: ${MARKET_INCLUDE_UNKNOWN:-true}
@@ -137,9 +126,6 @@ services:
     depends_on:
       timescaledb:
         condition: service_healthy
-    volumes:
-      - ${PROJECT_ROOT:-.}/markets.txt:/app/markets.txt
-      - ${PROJECT_ROOT:-.}/list.txt:/app/list.txt
     restart: unless-stopped
     networks:
       - monitor

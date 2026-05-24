@@ -24,7 +24,6 @@ class LoggingConfig:
 
 @dataclass(frozen=True)
 class CollectorConfig:
-    markets_file: str = os.getenv("UPBIT_MARKETS_FILE", "markets.txt")
     ping_interval: int = 30
     ping_timeout: int = 10
     reconnect_delay_seconds: int = 5
@@ -33,8 +32,6 @@ class CollectorConfig:
 
 @dataclass(frozen=True)
 class MarketSyncConfig:
-    markets_file: str = os.getenv("UPBIT_MARKETS_FILE", "markets.txt")
-    market_list_file: str = os.getenv("UPBIT_MARKET_LIST_FILE", "list.txt")
     upbit_market_all_url: str = os.getenv("UPBIT_MARKET_ALL_URL", "https://api.upbit.com/v1/market/all?is_details=false")
     coinpaprika_tickers_url: str = os.getenv("COINPAPRIKA_TICKERS_URL", "https://api.coinpaprika.com/v1/tickers")
     market_cap_limit_krw: float = float(os.getenv("MARKET_CAP_LIMIT_KRW", "1000000000000"))
@@ -79,9 +76,3 @@ class DetectorWebConfig:
 
 def get_project_dir() -> str:
     return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-
-
-def resolve_path(path: str) -> str:
-    if os.path.isabs(path):
-        return path
-    return os.path.join(get_project_dir(), path)
