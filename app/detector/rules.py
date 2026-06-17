@@ -1,8 +1,10 @@
-from app.common.config import DetectorConfig, DipBuyingConfig
+from app.common.config import BotDetectionConfig, DetectorConfig, DipBuyingConfig
 
 RULE_KEY_ALIASES = {
     "avg_1h_trade_value": "buy_1s_bid_trade_value",
     "tps_multiplier": "tps_ratio",
+    "small_trade_value_max": "trade_value_max",
+    "min_small_trade_count": "min_buy_sell_pair_count",
 }
 
 STRATEGY_DEFINITIONS = {
@@ -74,6 +76,65 @@ STRATEGY_DEFINITIONS = {
                 "metric_key": "ask_trade_value",
                 "operator_default": ">=",
                 "sort_order": 30,
+            },
+        ],
+    },
+    "bot_detection": {
+        "strategy_key": "bot_detection",
+        "name": "봇 감지",
+        "description": "소액 매수/매도를 빠르게 반복하며 가격을 거의 움직이지 않는 마켓 메이킹성 체결 패턴을 감지합니다.",
+        "rules": [
+            {
+                "rule_key": "lookback_seconds",
+                "label": "감지 구간(초)",
+                "description": "최근 몇 초 동안의 체결 패턴을 볼지 설정합니다.",
+                "metric_key": None,
+                "operator_default": "=",
+                "sort_order": 10,
+                "param_only": True,
+            },
+            {
+                "rule_key": "trade_value_min",
+                "label": "체결 금액 하한",
+                "description": "이 금액 이상인 체결만 매수/매도 반복 후보로 봅니다.",
+                "metric_key": None,
+                "operator_default": "=",
+                "sort_order": 20,
+                "param_only": True,
+            },
+            {
+                "rule_key": "trade_value_max",
+                "label": "체결 금액 상한",
+                "description": "이 금액 이하인 체결만 매수/매도 반복 후보로 봅니다.",
+                "metric_key": None,
+                "operator_default": "=",
+                "sort_order": 30,
+                "param_only": True,
+            },
+            {
+                "rule_key": "max_pair_gap_seconds",
+                "label": "매수 후 매도 최대 간격(초)",
+                "description": "조건에 맞는 매수 체결 뒤 몇 초 안에 조건에 맞는 매도 체결이 나와야 하는지 설정합니다.",
+                "metric_key": None,
+                "operator_default": "=",
+                "sort_order": 40,
+                "param_only": True,
+            },
+            {
+                "rule_key": "min_buy_sell_pair_count",
+                "label": "최소 매수→매도 페어 수",
+                "description": "감지 구간 안에서 필요한 매수 후 빠른 매도 반복 횟수입니다.",
+                "metric_key": "buy_sell_pair_count",
+                "operator_default": ">=",
+                "sort_order": 50,
+            },
+            {
+                "rule_key": "min_tps",
+                "label": "최소 TPS",
+                "description": "감지 구간 안의 초당 체결 수 하한입니다.",
+                "metric_key": "tps",
+                "operator_default": ">=",
+                "sort_order": 60,
             },
         ],
     },
@@ -192,6 +253,79 @@ def build_default_strategy_bundle(strategy_key: str):
                     "threshold_value": config.ask_trade_value_min,
                     "params_json": "{}",
                     "sort_order": get_rule_definition_map("dip_buying")["ask_trade_value"]["sort_order"],
+                },
+            ],
+        }
+
+    if strategy_key == "bot_detection":
+        config = BotDetectionConfig()
+        strategy = STRATEGY_DEFINITIONS["bot_detection"]
+        rule_definition_map = get_rule_definition_map("bot_detection")
+        return {
+            "strategy": {
+                "strategy_key": "bot_detection",
+                "name": strategy["name"],
+                "enabled": True,
+                "cooldown_seconds": config.cooldown_seconds,
+                "interval_seconds": config.interval_seconds,
+                "webhook_enabled": True,
+                "webhook_url": config.webhook_url,
+                "updated_at": None,
+            },
+            "rules": [
+                {
+                    "rule_key": "lookback_seconds",
+                    "label": rule_definition_map["lookback_seconds"]["label"],
+                    "enabled": True,
+                    "operator": rule_definition_map["lookback_seconds"]["operator_default"],
+                    "threshold_value": config.lookback_seconds,
+                    "params_json": "{}",
+                    "sort_order": rule_definition_map["lookback_seconds"]["sort_order"],
+                },
+                {
+                    "rule_key": "trade_value_min",
+                    "label": rule_definition_map["trade_value_min"]["label"],
+                    "enabled": True,
+                    "operator": rule_definition_map["trade_value_min"]["operator_default"],
+                    "threshold_value": config.trade_value_min,
+                    "params_json": "{}",
+                    "sort_order": rule_definition_map["trade_value_min"]["sort_order"],
+                },
+                {
+                    "rule_key": "trade_value_max",
+                    "label": rule_definition_map["trade_value_max"]["label"],
+                    "enabled": True,
+                    "operator": rule_definition_map["trade_value_max"]["operator_default"],
+                    "threshold_value": config.trade_value_max,
+                    "params_json": "{}",
+                    "sort_order": rule_definition_map["trade_value_max"]["sort_order"],
+                },
+                {
+                    "rule_key": "max_pair_gap_seconds",
+                    "label": rule_definition_map["max_pair_gap_seconds"]["label"],
+                    "enabled": True,
+                    "operator": rule_definition_map["max_pair_gap_seconds"]["operator_default"],
+                    "threshold_value": config.max_pair_gap_seconds,
+                    "params_json": "{}",
+                    "sort_order": rule_definition_map["max_pair_gap_seconds"]["sort_order"],
+                },
+                {
+                    "rule_key": "min_buy_sell_pair_count",
+                    "label": rule_definition_map["min_buy_sell_pair_count"]["label"],
+                    "enabled": True,
+                    "operator": rule_definition_map["min_buy_sell_pair_count"]["operator_default"],
+                    "threshold_value": config.min_buy_sell_pair_count,
+                    "params_json": "{}",
+                    "sort_order": rule_definition_map["min_buy_sell_pair_count"]["sort_order"],
+                },
+                {
+                    "rule_key": "min_tps",
+                    "label": rule_definition_map["min_tps"]["label"],
+                    "enabled": True,
+                    "operator": rule_definition_map["min_tps"]["operator_default"],
+                    "threshold_value": config.min_tps,
+                    "params_json": "{}",
+                    "sort_order": rule_definition_map["min_tps"]["sort_order"],
                 },
             ],
         }

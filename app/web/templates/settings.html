@@ -333,7 +333,7 @@
         <span class="kicker">수정</span>
         <h2>{{ strategy_definition.name }} 설정 저장</h2>
         <p>이 페이지는 <code>{{ current_strategy_key }}</code> 전략만 수정합니다. 다른 전략의 설정이나 웹훅은 건드리지 않습니다.</p>
-        <form method="post" action="/detector-admin/{{ 'dip-buying' if current_strategy_key == 'dip_buying' else 'spike' }}">
+        <form method="post" action="{{ form_action }}">
           <div class="form-grid">
             <div class="field">
               <label>전략 활성화</label>

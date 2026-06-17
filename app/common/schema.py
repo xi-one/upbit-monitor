@@ -233,7 +233,7 @@ def _seed_strategy_if_missing(cursor, strategy_key: str, bundle: dict):
     cursor.execute("SELECT id FROM alert_strategies WHERE strategy_key = %s", (strategy_key,))
     existing_row = cursor.fetchone()
     if existing_row is not None:
-        return
+        return existing_row[0]
 
     strategy = bundle["strategy"]
     cursor.execute(
@@ -263,6 +263,45 @@ def _seed_strategy_if_missing(cursor, strategy_key: str, bundle: dict):
     strategy_id = cursor.fetchone()[0]
 
     for rule in bundle["rules"]:
+        cursor.execute(
+            """
+            INSERT INTO alert_strategy_rules (
+                strategy_id,
+                rule_key,
+                label,
+                enabled,
+                operator,
+                threshold_value,
+                params_json,
+                sort_order
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+            """,
+            (
+                strategy_id,
+                rule["rule_key"],
+                rule["label"],
+                rule["enabled"],
+                rule["operator"],
+                rule["threshold_value"],
+                rule.get("params_json", "{}"),
+                rule["sort_order"],
+            ),
+        )
+    return strategy_id
+
+
+def _sync_strategy_rules(cursor, strategy_key: str, bundle: dict):
+    strategy_id = _seed_strategy_if_missing(cursor, strategy_key, bundle)
+    cursor.execute(
+        "SELECT rule_key FROM alert_strategy_rules WHERE strategy_id = %s",
+        (strategy_id,),
+    )
+    existing_rule_keys = {row[0] for row in cursor.fetchall()}
+
+    for rule in bundle["rules"]:
+        if rule["rule_key"] in existing_rule_keys:
+            continue
         cursor.execute(
             """
             INSERT INTO alert_strategy_rules (
@@ -379,10 +418,10 @@ def ensure_runtime_schema(conn, defaults=None, default_rules=None):
         cursor.execute(STRATEGY_RULES_TABLE_SQL)
         cursor.execute(STRATEGY_RULES_INDEX_SQL)
 
-        migrated = _migrate_spike_strategy_from_legacy(cursor)
-        if not migrated:
-            _seed_strategy_if_missing(cursor, "spike", build_default_strategy_bundle("spike"))
-        _seed_strategy_if_missing(cursor, "dip_buying", build_default_strategy_bundle("dip_buying"))
+        _migrate_spike_strategy_from_legacy(cursor)
+        _sync_strategy_rules(cursor, "spike", build_default_strategy_bundle("spike"))
+        _sync_strategy_rules(cursor, "dip_buying", build_default_strategy_bundle("dip_buying"))
+        _sync_strategy_rules(cursor, "bot_detection", build_default_strategy_bundle("bot_detection"))
 
     conn.commit()
     ensure_market_sync_schema(conn)

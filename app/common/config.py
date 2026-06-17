@@ -67,6 +67,19 @@ class DipBuyingConfig:
 
 
 @dataclass(frozen=True)
+class BotDetectionConfig:
+    lookback_seconds: int = int(os.getenv("BOT_ALERT_LOOKBACK_SECONDS", "30"))
+    trade_value_min: float = float(os.getenv("BOT_ALERT_TRADE_VALUE_MIN", "0"))
+    trade_value_max: float = float(os.getenv("BOT_ALERT_TRADE_VALUE_MAX", os.getenv("BOT_ALERT_SMALL_TRADE_VALUE_MAX", "50000")))
+    max_pair_gap_seconds: float = float(os.getenv("BOT_ALERT_MAX_PAIR_GAP_SECONDS", "3"))
+    min_buy_sell_pair_count: float = float(os.getenv("BOT_ALERT_MIN_BUY_SELL_PAIR_COUNT", os.getenv("BOT_ALERT_MIN_SMALL_TRADE_COUNT", "30")))
+    min_tps: float = float(os.getenv("BOT_ALERT_MIN_TPS", "1.5"))
+    cooldown_seconds: int = int(os.getenv("BOT_ALERT_COOLDOWN_SECONDS", "300"))
+    interval_seconds: int = int(os.getenv("BOT_DETECTOR_INTERVAL_SECONDS", "10"))
+    webhook_url: str = os.getenv("BOT_ALERT_WEBHOOK_URL", "").strip()
+
+
+@dataclass(frozen=True)
 class DetectorWebConfig:
     username: str = os.getenv("DETECTOR_WEB_USERNAME", "admin")
     password: str = os.getenv("DETECTOR_WEB_PASSWORD", "change-me")

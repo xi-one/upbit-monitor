@@ -26,7 +26,25 @@ def _build_embed_fields(strategy_key, row):
             {"name": "누적 매도 거래대금", "value": f"{row['ask_trade_value']:,.0f}원", "inline": False},
         ]
 
+    if strategy_key == "bot_detection":
+        return [
+            {"name": "매수→매도 페어 수", "value": f"{row['buy_sell_pair_count']:,.0f}건", "inline": True},
+            {"name": "TPS", "value": f"{row['tps']:.3f}", "inline": True},
+            {"name": "가격 변동폭", "value": f"{row['price_range_pct']:.3f}%", "inline": True},
+            {"name": "총 거래대금", "value": f"{row['total_trade_value']:,.0f}원", "inline": False},
+        ]
+
     return []
+
+
+def _embed_color(strategy_key):
+    if strategy_key == "spike":
+        return 16753920
+    if strategy_key == "dip_buying":
+        return 15158332
+    if strategy_key == "bot_detection":
+        return 5793266
+    return 16777215
 
 
 def send_discord_alert(logger, webhook_url, strategy, row, reason):
@@ -41,7 +59,7 @@ def send_discord_alert(logger, webhook_url, strategy, row, reason):
             {
                 "title": f"{row['market']} 알림",
                 "description": reason,
-                "color": 16753920 if strategy["strategy_key"] == "spike" else 15158332,
+                "color": _embed_color(strategy["strategy_key"]),
                 "fields": _build_embed_fields(strategy["strategy_key"], row),
                 "footer": {"text": f"업비트 감지기 · {strategy['name']}"},
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
