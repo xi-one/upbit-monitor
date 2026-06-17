@@ -87,6 +87,70 @@ FROM recent_window
 ORDER BY price_drop_pct DESC NULLS LAST, ask_trade_value DESC;
 """
 
+FETCH_BOT_MARKET_METRICS_SQL = """
+WITH recent_all AS (
+    SELECT
+        time,
+        market,
+        side,
+        price,
+        trade_value
+    FROM trades
+    WHERE time >= now() - make_interval(secs => %s)
+),
+candidate_trades AS (
+    SELECT *
+    FROM recent_all
+    WHERE trade_value >= %s
+      AND trade_value <= %s
+),
+buy_sell_pairs AS (
+    SELECT
+        buy.market,
+        buy.time AS bid_time,
+        MIN(sell.time) AS ask_time
+    FROM candidate_trades buy
+    JOIN candidate_trades sell
+      ON sell.market = buy.market
+     AND sell.side = 'ASK'
+     AND sell.time > buy.time
+     AND sell.time <= buy.time + make_interval(secs => %s)
+    WHERE buy.side = 'BID'
+    GROUP BY buy.market, buy.time
+),
+metrics AS (
+    SELECT
+        market,
+        COUNT(*)::double precision AS trade_count,
+        COALESCE(SUM(trade_value), 0)::double precision AS total_trade_value,
+        MIN(price)::double precision AS min_price,
+        MAX(price)::double precision AS max_price
+    FROM recent_all
+    GROUP BY market
+),
+pair_metrics AS (
+    SELECT
+        market,
+        COUNT(*)::double precision AS buy_sell_pair_count
+    FROM buy_sell_pairs
+    GROUP BY market
+)
+SELECT
+    metrics.market,
+    metrics.trade_count,
+    COALESCE(pair_metrics.buy_sell_pair_count, 0)::double precision AS buy_sell_pair_count,
+    metrics.total_trade_value,
+    metrics.trade_count / %s::double precision AS tps,
+    CASE
+        WHEN min_price IS NULL OR min_price = 0 OR max_price IS NULL
+        THEN NULL
+        ELSE ((max_price - min_price) / min_price) * 100.0
+    END AS price_range_pct
+FROM metrics
+LEFT JOIN pair_metrics ON pair_metrics.market = metrics.market
+ORDER BY buy_sell_pair_count DESC, tps DESC, total_trade_value DESC;
+"""
+
 RECENT_ALERT_SQL = """
 SELECT 1
 FROM market_alerts

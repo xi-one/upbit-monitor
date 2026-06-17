@@ -25,6 +25,14 @@ db_conn.autocommit = True
 web_config = DetectorWebConfig()
 TEN_MILLION_KRW = 10_000_000
 TEN_MILLION_RULE_KEYS = {"buy_1s_bid_trade_value", "ask_trade_value"}
+PARAM_ONLY_RULE_KEYS = {
+    "lookback_minutes",
+    "lookback_seconds",
+    "trade_value_min",
+    "trade_value_max",
+    "small_trade_value_max",
+    "max_pair_gap_seconds",
+}
 
 
 def _check_auth(auth_header: str) -> bool:
@@ -54,7 +62,11 @@ def requires_auth(view):
 
 
 def _strategy_path(strategy_key: str) -> str:
-    return "/detector-admin/dip-buying" if strategy_key == "dip_buying" else f"/detector-admin/{strategy_key}"
+    if strategy_key == "dip_buying":
+        return "/detector-admin/dip-buying"
+    if strategy_key == "bot_detection":
+        return "/detector-admin/bot-detection"
+    return f"/detector-admin/{strategy_key}"
 
 
 def _format_rule_for_display(rule: dict) -> dict:
@@ -63,7 +75,7 @@ def _format_rule_for_display(rule: dict) -> dict:
     formatted_rule["raw_threshold_value"] = raw_threshold_value
     formatted_rule["threshold_step"] = "0.01"
     formatted_rule["threshold_unit"] = ""
-    formatted_rule["show_operator"] = formatted_rule["rule_key"] != "lookback_minutes"
+    formatted_rule["show_operator"] = formatted_rule["rule_key"] not in PARAM_ONLY_RULE_KEYS
 
     if formatted_rule["rule_key"] in TEN_MILLION_RULE_KEYS:
         formatted_rule["threshold_value"] = raw_threshold_value / TEN_MILLION_KRW
@@ -73,6 +85,18 @@ def _format_rule_for_display(rule: dict) -> dict:
         formatted_rule["threshold_value"] = int(raw_threshold_value)
         formatted_rule["threshold_step"] = "1"
         formatted_rule["threshold_unit"] = "분"
+    elif formatted_rule["rule_key"] == "lookback_seconds":
+        formatted_rule["threshold_value"] = int(raw_threshold_value)
+        formatted_rule["threshold_step"] = "1"
+        formatted_rule["threshold_unit"] = "초"
+    elif formatted_rule["rule_key"] in {"trade_value_min", "trade_value_max", "small_trade_value_max"}:
+        formatted_rule["threshold_value"] = int(raw_threshold_value)
+        formatted_rule["threshold_step"] = "1000"
+        formatted_rule["threshold_unit"] = "원"
+    elif formatted_rule["rule_key"] == "max_pair_gap_seconds":
+        formatted_rule["threshold_value"] = raw_threshold_value
+        formatted_rule["threshold_step"] = "0.1"
+        formatted_rule["threshold_unit"] = "초"
     else:
         formatted_rule["threshold_value"] = raw_threshold_value
 
@@ -110,8 +134,9 @@ def fetch_strategy_tabs():
                 "path": _strategy_path(row["strategy_key"]),
             }
         )
-    if not tabs:
-        for key, definition in STRATEGY_DEFINITIONS.items():
+    existing_keys = {tab["strategy_key"] for tab in tabs}
+    for key, definition in STRATEGY_DEFINITIONS.items():
+        if key not in existing_keys:
             tabs.append({"strategy_key": key, "name": definition["name"], "path": _strategy_path(key)})
     return tabs
 
@@ -125,20 +150,17 @@ def build_render_context(strategy_key: str):
         bundle = build_default_strategy_bundle(strategy_key)
 
     rule_map = {rule["rule_key"]: dict(rule) for rule in bundle["rules"]}
+    default_rule_map = {
+        rule["rule_key"]: dict(rule)
+        for rule in build_default_strategy_bundle(strategy_key)["rules"]
+    }
     rules_for_render = []
     for definition in rule_definitions:
         rules_for_render.append(
             _format_rule_for_display(
                 rule_map.get(
                     definition["rule_key"],
-                    {
-                        "rule_key": definition["rule_key"],
-                        "label": definition["label"],
-                        "enabled": True,
-                        "operator": definition["operator_default"],
-                        "threshold_value": 0,
-                        "sort_order": definition["sort_order"],
-                    },
+                    default_rule_map[definition["rule_key"]],
                 )
             )
         )
@@ -150,6 +172,7 @@ def build_render_context(strategy_key: str):
         "strategy_definition": strategy_definition,
         "market_status": fetch_market_sync_status(db_conn),
         "tabs": fetch_strategy_tabs(),
+        "form_action": _strategy_path(strategy_key),
     }
 
 
@@ -218,6 +241,7 @@ def spike():
         strategy_definition=context["strategy_definition"],
         market_status=context["market_status"],
         tabs=context["tabs"],
+        form_action=context["form_action"],
         current_strategy_key="spike",
         saved=request.args.get("saved") == "1",
         markets_refreshed=request.args.get("markets_refreshed") == "1",
@@ -241,7 +265,33 @@ def dip_buying():
         strategy_definition=context["strategy_definition"],
         market_status=context["market_status"],
         tabs=context["tabs"],
+        form_action=context["form_action"],
         current_strategy_key="dip_buying",
+        saved=request.args.get("saved") == "1",
+        markets_refreshed=request.args.get("markets_refreshed") == "1",
+        market_refresh_error=request.args.get("market_refresh_error", "").strip(),
+    )
+
+
+@app.route("/bot_detection", methods=["GET", "POST"])
+@app.route("/bot-detection", methods=["GET", "POST"])
+@requires_auth
+def bot_detection():
+    if request.method == "POST":
+        save_strategy("bot_detection", request.form)
+        return redirect("/detector-admin/bot-detection?saved=1")
+
+    context = build_render_context("bot_detection")
+    return render_template(
+        "settings.html",
+        strategy=context["strategy"],
+        rules=context["rules"],
+        rule_definitions=context["rule_definitions"],
+        strategy_definition=context["strategy_definition"],
+        market_status=context["market_status"],
+        tabs=context["tabs"],
+        form_action=context["form_action"],
+        current_strategy_key="bot_detection",
         saved=request.args.get("saved") == "1",
         markets_refreshed=request.args.get("markets_refreshed") == "1",
         market_refresh_error=request.args.get("market_refresh_error", "").strip(),
@@ -260,7 +310,7 @@ def legacy_save():
 def refresh_markets():
     result = refresh_market_universe()
     target_strategy = request.args.get("strategy", "spike")
-    base = _strategy_path("dip_buying" if target_strategy == "dip_buying" else "spike")
+    base = _strategy_path(target_strategy if target_strategy in STRATEGY_DEFINITIONS else "spike")
     if result["ok"]:
         return redirect(f"{base}?markets_refreshed=1")
     return redirect(f"{base}?market_refresh_error={quote(result['error'])}")

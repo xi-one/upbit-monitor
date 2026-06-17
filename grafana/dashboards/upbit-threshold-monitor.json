@@ -38,8 +38,8 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "drawStyle": "bars",
+            "fillOpacity": 40,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -114,7 +114,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'BID'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'BID'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 2;",
+          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'BID'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'BID'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 3 DESC, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -156,8 +156,8 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "drawStyle": "bars",
+            "fillOpacity": 40,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -232,7 +232,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'ASK'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'ASK'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 2;",
+          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'ASK'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'ASK'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 3 DESC, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -274,8 +274,8 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "drawStyle": "bars",
+            "fillOpacity": 40,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -351,6 +351,10 @@
                 "value": 0
               },
               {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
                 "id": "custom.axisPlacement",
                 "value": "right"
               }
@@ -391,7 +395,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "WITH side_values AS (\n  SELECT\n    bucket AS \"time\",\n    CASE\n      WHEN side = 'BID' THEN '매수'\n      ELSE '매도'\n    END AS metric,\n    value_krw AS value\n  FROM trades_1s\n  WHERE $__timeFilter(bucket)\n    AND market = ${market:sqlstring}\n), closing_prices AS (\n  SELECT\n    time_bucket('1 second', time) AS \"time\",\n    '가격' AS metric,\n    last(price, time) AS value\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market = ${market:sqlstring}\n  GROUP BY 1\n)\nSELECT * FROM side_values\nUNION ALL\nSELECT * FROM closing_prices\nORDER BY 1, 2;",
+          "rawSql": "WITH side_values AS (\n  SELECT\n    bucket AS \"time\",\n    CASE\n      WHEN side = 'BID' THEN '매수'\n      ELSE '매도'\n    END AS metric,\n    value_krw AS value,\n    0 AS series_group\n  FROM trades_1s\n  WHERE $__timeFilter(bucket)\n    AND market = ${market:sqlstring}\n), closing_prices AS (\n  SELECT\n    time_bucket('1 second', time) AS \"time\",\n    '가격' AS metric,\n    last(price, time) AS value,\n    1 AS series_group\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market = ${market:sqlstring}\n  GROUP BY 1\n), combined AS (\n  SELECT * FROM side_values\n  UNION ALL\n  SELECT * FROM closing_prices\n)\nSELECT\n  \"time\",\n  metric,\n  value\nFROM combined\nORDER BY \"time\", series_group, value DESC, metric;",
           "refId": "A",
           "sql": {
             "columns": [

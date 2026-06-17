@@ -44,10 +44,13 @@
 필수:
 
 - `DISCORD_BOT_TOKEN`
-- `DISCORD_CHANNEL_ID`
+- `DISCORD_CHANNEL_ID` 또는 `DISCORD_CHANNEL_IDS`
 
 선택:
 
+- `DISCORD_CHANNEL_IDS=111111111111111111,222222222222222222`
+  - 여러 채널 중 읽을 채널만 쉼표로 나열
+  - 이 값이 있으면 `DISCORD_CHANNEL_ID`보다 우선 사용
 - `DISCORD_TTS_ONLY_BOT_MESSAGES=true`
   - 봇 메시지만 읽고 싶을 때
 - `DISCORD_TTS_USERNAME_PREFIX=true`
@@ -104,6 +107,25 @@ python windows_discord_tts.py
 - `인젝티브`처럼 읽는다
 
 매핑을 찾지 못하면 기존처럼 종목 코드를 그대로 읽는다.
+
+메시지를 읽을 때 콘솔에는 어떤 채널에서 어떤 종목이 감지됐는지도 같이 출력한다.
+
+시작하면 듣고 있는 채널 ID와 채널명 매핑이 1회 출력된다.
+채널명 색상은 채널마다 자동으로 다르게 배정된다.
+
+예:
+
+```text
+listening channel map:
+- 111111111111111111 -> #봇-알림
+- 222222222222222222 -> #하따-알림
+```
+
+예:
+
+```text
+[2026-06-17 15:42:10] #봇-알림 인젝티브
+```
 
 ## 참고
 
