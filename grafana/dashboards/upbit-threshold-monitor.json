@@ -419,13 +419,516 @@
       ],
       "title": "선택 종목 매수/매도 1초 거래대금 + 가격",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "누적 거래대금",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyKRW"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'BID'\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'BID'\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  SUM(trade_value_sum) OVER (\n    PARTITION BY market\n    ORDER BY bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed\nORDER BY 1, 2;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "선택 기간 누적 매수 거래대금 Top 20",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "누적 거래대금",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyKRW"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'ASK'\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'ASK'\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  SUM(trade_value_sum) OVER (\n    PARTITION BY market\n    ORDER BY bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed\nORDER BY 1, 2;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "선택 기간 누적 매도 거래대금 Top 20",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "누적 거래대금",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyKRW"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  SUM(trade_value_sum) OVER (\n    PARTITION BY market\n    ORDER BY bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed\nORDER BY 1, 2;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "선택 기간 누적 전체 거래대금 Top 20",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyKRW"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "누적 거래대금"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "누적 거래대금"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "가격"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "가격"
+              },
+              {
+                "id": "unit",
+                "value": "currencyKRW"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH trade_value_bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market = ${market:sqlstring}\n  GROUP BY 1\n), trade_value_series AS (\n  SELECT\n    bucket AS \"time\",\n    '누적 거래대금' AS metric,\n    SUM(trade_value_sum) OVER (\n      ORDER BY bucket\n      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) AS value\n  FROM trade_value_bucketed\n), price_series AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS \"time\",\n    '가격' AS metric,\n    last(price, time) AS value\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market = ${market:sqlstring}\n  GROUP BY 1\n)\nSELECT * FROM trade_value_series\nUNION ALL\nSELECT * FROM price_series\nORDER BY 1, 2;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "선택 종목 누적 거래대금 + 가격",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 39,
   "tags": [
     "upbit",
-    "timescaledb"
+    "timescale"
   ],
   "templating": {
     "list": [
@@ -439,6 +942,16 @@
         "label": "Threshold KRW",
         "name": "threshold_krw",
         "options": [
+          {
+            "selected": false,
+            "text": "5000000",
+            "value": "5000000"
+          },
+          {
+            "selected": false,
+            "text": "10000000",
+            "value": "10000000"
+          },
           {
             "selected": true,
             "text": "20000000",
@@ -455,7 +968,7 @@
             "value": "100000000"
           }
         ],
-        "query": "20000000,50000000,100000000",
+        "query": "5000000,10000000,20000000,50000000,100000000",
         "skipUrlSync": false,
         "type": "custom"
       },
