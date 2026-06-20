@@ -9,7 +9,7 @@
   - macOS 기본 `say` 명령 사용
 - `windows_discord_tts.py`
   - Windows 전용
-  - `pyttsx3` 사용
+  - 온라인 Microsoft Edge TTS 사용
 - `.env.example`
   - 필요한 환경변수 예시
 - `requirements.txt`
@@ -59,8 +59,11 @@
   - 시작 시 종목명을 메모리에 불러올 업비트 API URL
 - `DISCORD_TTS_MAC_VOICE=Yuna`
   - macOS `say` 음성 지정
-- `DISCORD_TTS_WINDOWS_RATE=180`
-  - Windows 읽기 속도
+- `DISCORD_TTS_WINDOWS_VOICE=ko-KR-InJoonNeural`
+  - Windows Edge TTS 음성 이름. 기본값은 한국어 남성 음성
+  - 한국어 여성 음성은 `ko-KR-SunHiNeural`
+- `DISCORD_TTS_WINDOWS_EDGE_RATE=+0%`
+  - 읽기 속도. 예: `+20%` 또는 `-10%`
 
 ## 설치
 
@@ -100,6 +103,11 @@ cd discord_tts
 python windows_discord_tts.py
 ```
 
+Windows 스크립트는 기본적으로 `ko-KR-InJoonNeural` 남성 음성을 사용한다.
+Edge TTS는 온라인 서비스이므로 Windows에 음성 팩을 별도로 설치할 필요가 없지만,
+실행 중 인터넷에 연결되어 있어야 한다.
+스크립트 시작 시 현재 사용할 수 있는 한국어 Edge TTS 음성 목록과 선택한 음성을 출력한다.
+
 ## 종목명 읽기 방식
 
 - 메시지에 `KRW-INJ` 같은 종목 코드가 있으면
@@ -109,6 +117,8 @@ python windows_discord_tts.py
 매핑을 찾지 못하면 기존처럼 종목 코드를 그대로 읽는다.
 
 메시지를 읽을 때 콘솔에는 어떤 채널에서 어떤 종목이 감지됐는지도 같이 출력한다.
+Windows TTS는 채널명과 종목명을 함께 읽는다. 채널명의 `-`, `_`는 자연스럽게 공백으로 바꾼다.
+예를 들어 `#봇-알림` 채널에서 `KRW-INJ`가 감지되면 `봇 알림 인젝티브`로 읽는다.
 
 시작하면 듣고 있는 채널 ID와 채널명 매핑이 1회 출력된다.
 채널명 색상은 채널마다 자동으로 다르게 배정된다.

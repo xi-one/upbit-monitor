@@ -87,6 +87,9 @@ services:
       ALERT_COOLDOWN_SECONDS: ${ALERT_COOLDOWN_SECONDS:-300}
       DETECTOR_INTERVAL_SECONDS: ${DETECTOR_INTERVAL_SECONDS:-10}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      BOT_DETECTOR_INTERVAL_SECONDS: ${BOT_DETECTOR_INTERVAL_SECONDS:-10}
+      BOT_ALERT_MAX_TPS: ${BOT_ALERT_MAX_TPS:-10}
+      BOT_ALERT_PRICE_INCREASE_PCT_MAX: ${BOT_ALERT_PRICE_INCREASE_PCT_MAX:-1.0}
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -117,6 +120,9 @@ services:
       ALERT_COOLDOWN_SECONDS: ${ALERT_COOLDOWN_SECONDS:-300}
       DETECTOR_INTERVAL_SECONDS: ${DETECTOR_INTERVAL_SECONDS:-10}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      BOT_DETECTOR_INTERVAL_SECONDS: ${BOT_DETECTOR_INTERVAL_SECONDS:-10}
+      BOT_ALERT_MAX_TPS: ${BOT_ALERT_MAX_TPS:-10}
+      BOT_ALERT_PRICE_INCREASE_PCT_MAX: ${BOT_ALERT_PRICE_INCREASE_PCT_MAX:-1.0}
       MARKET_CAP_LIMIT_KRW: ${MARKET_CAP_LIMIT_KRW:-1000000000000}
       MARKET_CAP_USDKRW: ${MARKET_CAP_USDKRW:-1350}
       MARKET_INCLUDE_UNKNOWN: ${MARKET_INCLUDE_UNKNOWN:-true}
@@ -127,6 +133,29 @@ services:
       timescaledb:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - monitor
+
+  daily-report:
+    build:
+      context: .
+    command: ["python", "daily_market_report.py"]
+    environment:
+      TZ: Asia/Seoul
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-upbit}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAILY_REPORT_WEBHOOK_URL: ${DAILY_REPORT_WEBHOOK_URL:-}
+      DAILY_REPORT_IMMEDIATE_WINDOW_SECONDS: ${DAILY_REPORT_IMMEDIATE_WINDOW_SECONDS:-60}
+      DAILY_REPORT_IMMEDIATE_RISE_PCT: ${DAILY_REPORT_IMMEDIATE_RISE_PCT:-1.0}
+      DAILY_REPORT_10M_RISE_PCT: ${DAILY_REPORT_10M_RISE_PCT:-2.0}
+      DAILY_REPORT_1H_RISE_PCT: ${DAILY_REPORT_1H_RISE_PCT:-5.0}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    profiles: ["jobs"]
     networks:
       - monitor
 
