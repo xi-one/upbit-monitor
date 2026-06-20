@@ -357,9 +357,9 @@
               <input id="cooldown_seconds" name="cooldown_seconds" type="number" step="1" value="{{ strategy.cooldown_seconds }}" required>
             </div>
             <div class="field">
-              <label for="interval_seconds">감지기 주기 초</label>
-              <span>이 전략만의 계산 주기입니다.</span>
-              <input id="interval_seconds" name="interval_seconds" type="number" step="1" value="{{ strategy.interval_seconds }}" required>
+              <label for="interval_seconds">평가 주기(초)</label>
+              <span>조건 충족 여부를 다시 계산하는 간격입니다. 최소 1초입니다.</span>
+              <input id="interval_seconds" name="interval_seconds" type="number" min="1" step="1" value="{{ strategy.interval_seconds }}" required>
             </div>
             <div class="field full">
               <label for="webhook_url">전략 전용 웹훅 URL</label>

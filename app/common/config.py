@@ -74,9 +74,20 @@ class BotDetectionConfig:
     max_pair_gap_seconds: float = float(os.getenv("BOT_ALERT_MAX_PAIR_GAP_SECONDS", "3"))
     min_buy_sell_pair_count: float = float(os.getenv("BOT_ALERT_MIN_BUY_SELL_PAIR_COUNT", os.getenv("BOT_ALERT_MIN_SMALL_TRADE_COUNT", "30")))
     min_tps: float = float(os.getenv("BOT_ALERT_MIN_TPS", "1.5"))
+    max_tps: float = float(os.getenv("BOT_ALERT_MAX_TPS", "10"))
+    price_increase_pct_max: float = float(os.getenv("BOT_ALERT_PRICE_INCREASE_PCT_MAX", "1.0"))
     cooldown_seconds: int = int(os.getenv("BOT_ALERT_COOLDOWN_SECONDS", "300"))
     interval_seconds: int = int(os.getenv("BOT_DETECTOR_INTERVAL_SECONDS", "10"))
     webhook_url: str = os.getenv("BOT_ALERT_WEBHOOK_URL", "").strip()
+
+
+@dataclass(frozen=True)
+class DailyMarketReportConfig:
+    webhook_url: str = os.getenv("DAILY_REPORT_WEBHOOK_URL", "").strip()
+    immediate_window_seconds: int = int(os.getenv("DAILY_REPORT_IMMEDIATE_WINDOW_SECONDS", "60"))
+    immediate_rise_pct: float = float(os.getenv("DAILY_REPORT_IMMEDIATE_RISE_PCT", "1.0"))
+    ten_minute_rise_pct: float = float(os.getenv("DAILY_REPORT_10M_RISE_PCT", "2.0"))
+    one_hour_rise_pct: float = float(os.getenv("DAILY_REPORT_1H_RISE_PCT", "5.0"))
 
 
 @dataclass(frozen=True)

@@ -124,7 +124,9 @@ metrics AS (
         COUNT(*)::double precision AS trade_count,
         COALESCE(SUM(trade_value), 0)::double precision AS total_trade_value,
         MIN(price)::double precision AS min_price,
-        MAX(price)::double precision AS max_price
+        MAX(price)::double precision AS max_price,
+        (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price,
+        (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price
     FROM recent_all
     GROUP BY market
 ),
@@ -145,7 +147,12 @@ SELECT
         WHEN min_price IS NULL OR min_price = 0 OR max_price IS NULL
         THEN NULL
         ELSE ((max_price - min_price) / min_price) * 100.0
-    END AS price_range_pct
+    END AS price_range_pct,
+    CASE
+        WHEN first_price IS NULL OR first_price = 0 OR last_price IS NULL
+        THEN NULL
+        ELSE GREATEST(((last_price - first_price) / first_price) * 100.0, 0)
+    END AS price_increase_pct
 FROM metrics
 LEFT JOIN pair_metrics ON pair_metrics.market = metrics.market
 ORDER BY buy_sell_pair_count DESC, tps DESC, total_trade_value DESC;

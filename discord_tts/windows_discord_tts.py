@@ -1,20 +1,24 @@
+import asyncio
 import os
 import re
 import queue
+import tempfile
 import threading
 from datetime import datetime
 
 import discord
-import pyttsx3
+import edge_tts
 import requests
 from dotenv import load_dotenv
+from playsound3 import playsound
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
 ONLY_BOT_MESSAGES = os.getenv("DISCORD_TTS_ONLY_BOT_MESSAGES", "true").lower() in {"1", "true", "yes", "on"}
 USERNAME_PREFIX = os.getenv("DISCORD_TTS_USERNAME_PREFIX", "false").lower() in {"1", "true", "yes", "on"}
-WINDOWS_RATE = int(os.getenv("DISCORD_TTS_WINDOWS_RATE", "180"))
+WINDOWS_VOICE = os.getenv("DISCORD_TTS_WINDOWS_VOICE", "").strip() or "ko-KR-InJoonNeural"
+WINDOWS_EDGE_RATE = os.getenv("DISCORD_TTS_WINDOWS_EDGE_RATE", "").strip() or "+0%"
 UPBIT_MARKET_ALL_URL = os.getenv("UPBIT_MARKET_ALL_URL", "https://api.upbit.com/v1/market/all?is_details=false").strip()
 
 MARKET_PATTERN = re.compile(r"\b([A-Z]{2,5}-[A-Z0-9]{2,10})\b")
@@ -80,22 +84,67 @@ def load_market_name_map() -> dict[str, str]:
 MARKET_NAME_MAP = load_market_name_map()
 
 
+async def print_available_edge_voices() -> None:
+    try:
+        voices = await edge_tts.list_voices()
+    except Exception as exc:
+        print(f"failed to load Edge TTS voice list: {exc}")
+        return
+
+    korean_voices = [voice for voice in voices if voice.get("Locale") == "ko-KR"]
+    print("available Korean Edge TTS voices:")
+    for voice in korean_voices:
+        print(f"- {voice.get('ShortName')} ({voice.get('Gender')})")
+
+    available_names = {voice.get("ShortName") for voice in voices}
+    if WINDOWS_VOICE not in available_names:
+        print(f"warning: configured Edge TTS voice is not available: {WINDOWS_VOICE}")
+
+
+def synthesize_and_play(text: str) -> None:
+    audio_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as audio_file:
+            audio_path = audio_file.name
+
+        communicate = edge_tts.Communicate(
+            text,
+            voice=WINDOWS_VOICE,
+            rate=WINDOWS_EDGE_RATE,
+        )
+        asyncio.run(communicate.save(audio_path))
+        playsound(audio_path)
+    finally:
+        if audio_path:
+            try:
+                os.unlink(audio_path)
+            except OSError:
+                pass
+
+
 def tts_worker():
-    engine = pyttsx3.init()
-    engine.setProperty("rate", WINDOWS_RATE)
+    asyncio.run(print_available_edge_voices())
+    print(f"selected Edge TTS voice: {WINDOWS_VOICE} (rate: {WINDOWS_EDGE_RATE})")
     while True:
         text = tts_queue.get()
         if text is None:
             break
-        engine.say(text)
-        engine.runAndWait()
-        tts_queue.task_done()
+        try:
+            synthesize_and_play(text)
+        except Exception as exc:
+            print(f"TTS playback failed: {exc}")
+        finally:
+            tts_queue.task_done()
 
 
 def extract_speech_event(message: discord.Message) -> dict:
     content = (message.content or "").strip()
     if not content:
         return {}
+
+    channel_name = getattr(message.channel, "name", "") or str(message.channel.id)
+    spoken_channel = re.sub(r"[-_]+", " ", channel_name).strip()
+    author_prefix = f"{message.author.display_name} " if USERNAME_PREFIX else ""
 
     market_match = MARKET_PATTERN.search(content)
     if market_match:
@@ -104,14 +153,14 @@ def extract_speech_event(message: discord.Message) -> dict:
         return {
             "market": market,
             "spoken_market": spoken_market,
-            "speech_text": f"{message.author.display_name} {spoken_market}" if USERNAME_PREFIX else spoken_market,
+            "speech_text": f"{spoken_channel} {author_prefix}{spoken_market}",
             "content": content,
         }
 
     return {
         "market": "",
         "spoken_market": "",
-        "speech_text": f"{message.author.display_name} {content}" if USERNAME_PREFIX else content,
+        "speech_text": f"{spoken_channel} {author_prefix}{content}",
         "content": content,
     }
 

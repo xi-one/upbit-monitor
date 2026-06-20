@@ -31,6 +31,7 @@ def _build_embed_fields(strategy_key, row):
             {"name": "매수→매도 페어 수", "value": f"{row['buy_sell_pair_count']:,.0f}건", "inline": True},
             {"name": "TPS", "value": f"{row['tps']:.3f}", "inline": True},
             {"name": "가격 변동폭", "value": f"{row['price_range_pct']:.3f}%", "inline": True},
+            {"name": "가격 상승률", "value": f"{row['price_increase_pct']:.3f}%", "inline": True},
             {"name": "총 거래대금", "value": f"{row['total_trade_value']:,.0f}원", "inline": False},
         ]
 

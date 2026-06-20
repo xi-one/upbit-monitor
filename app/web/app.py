@@ -97,6 +97,14 @@ def _format_rule_for_display(rule: dict) -> dict:
         formatted_rule["threshold_value"] = raw_threshold_value
         formatted_rule["threshold_step"] = "0.1"
         formatted_rule["threshold_unit"] = "초"
+    elif formatted_rule["rule_key"] in {"min_tps", "max_tps"}:
+        formatted_rule["threshold_value"] = raw_threshold_value
+        formatted_rule["threshold_step"] = "0.1"
+        formatted_rule["threshold_unit"] = "TPS"
+    elif formatted_rule["rule_key"] == "max_price_increase_pct":
+        formatted_rule["threshold_value"] = raw_threshold_value
+        formatted_rule["threshold_step"] = "0.1"
+        formatted_rule["threshold_unit"] = "%"
     else:
         formatted_rule["threshold_value"] = raw_threshold_value
 
@@ -189,7 +197,7 @@ def save_strategy(strategy_key: str, form) -> None:
                 strategy_definition["name"],
                 form.get("enabled") == "on",
                 int(form.get("cooldown_seconds", context["strategy"]["cooldown_seconds"])),
-                int(form.get("interval_seconds", context["strategy"]["interval_seconds"])),
+                max(1, int(form.get("interval_seconds", context["strategy"]["interval_seconds"]))),
                 form.get("webhook_enabled") == "on",
                 form.get("webhook_url", context["strategy"]["webhook_url"]).strip(),
             ),
