@@ -1,38 +1,62 @@
 import time
+from datetime import timezone
+from zoneinfo import ZoneInfo
 
 import requests
+
+KST = ZoneInfo("Asia/Seoul")
+
+
+def _format_kst(value):
+    if value is None:
+        return "-"
+    if hasattr(value, "astimezone"):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+    return str(value)
+
+
+def _format_float(value, digits=2, suffix=""):
+    if value is None:
+        return "-"
+    return f"{float(value):.{digits}f}{suffix}"
+
+
+def _format_krw(value):
+    if value is None:
+        return "-"
+    return f"{float(value):,.0f}원"
 
 
 def _build_embed_fields(strategy_key, row):
     if strategy_key == "spike":
         return [
-            {"name": "5분/1시간 비율", "value": f"{row['ratio_5m_vs_1h']:.2f}x", "inline": True},
-            {"name": "현재 TPS", "value": f"{row['tps_now']:.3f}", "inline": True},
-            {"name": "기준 TPS", "value": f"{row['tps_baseline']:.3f}", "inline": True},
-            {"name": "TPS 증가 배수", "value": f"{row['tps_ratio']:.2f}x", "inline": True},
-            {"name": "가격 변동률", "value": f"{row['price_change_pct']:.2f}%", "inline": True},
             {
-                "name": "최근 5분 내 1초 최대 매수 거래대금",
-                "value": f"{row['buy_1s_bid_trade_value']:,.0f}원",
+                "name": "측정 기준 시간",
+                "value": f"{_format_kst(row.get('measurement_start_at'))} ~ {_format_kst(row.get('measurement_end_at'))}",
                 "inline": False,
             },
+            {"name": "최근 1분 매수 거래대금", "value": _format_krw(row.get("buy_1m_bid_trade_value")), "inline": False},
+            {"name": "최근 1분 평균 TPS", "value": _format_float(row.get("tps_now"), 3), "inline": True},
+            {"name": "최근 1분 가격 변동률", "value": _format_float(row.get("price_change_pct"), 2, "%"), "inline": True},
         ]
 
     if strategy_key == "dip_buying":
         return [
-            {"name": "가격 하락률", "value": f"{row['price_drop_pct']:.2f}%", "inline": True},
-            {"name": "시작가", "value": f"{row['first_price']:,.0f}원", "inline": True},
-            {"name": "현재가", "value": f"{row['last_price']:,.0f}원", "inline": True},
-            {"name": "누적 매도 거래대금", "value": f"{row['ask_trade_value']:,.0f}원", "inline": False},
+            {"name": "가격 하락률", "value": _format_float(row.get("price_drop_pct"), 2, "%"), "inline": True},
+            {"name": "시작가", "value": _format_krw(row.get("first_price")), "inline": True},
+            {"name": "현재가", "value": _format_krw(row.get("last_price")), "inline": True},
+            {"name": "누적 매도 거래대금", "value": _format_krw(row.get("ask_trade_value")), "inline": False},
         ]
 
     if strategy_key == "bot_detection":
         return [
-            {"name": "매수→매도 페어 수", "value": f"{row['buy_sell_pair_count']:,.0f}건", "inline": True},
-            {"name": "TPS", "value": f"{row['tps']:.3f}", "inline": True},
-            {"name": "가격 변동폭", "value": f"{row['price_range_pct']:.3f}%", "inline": True},
-            {"name": "가격 상승률", "value": f"{row['price_increase_pct']:.3f}%", "inline": True},
-            {"name": "총 거래대금", "value": f"{row['total_trade_value']:,.0f}원", "inline": False},
+            {"name": "매수→매도 페어 수", "value": f"{float(row.get('buy_sell_pair_count') or 0):,.0f}건", "inline": True},
+            {"name": "TPS", "value": _format_float(row.get("tps"), 3), "inline": True},
+            {"name": "가격 변동폭", "value": _format_float(row.get("price_range_pct"), 3, "%"), "inline": True},
+            {"name": "가격 상승률", "value": _format_float(row.get("price_increase_pct"), 3, "%"), "inline": True},
+            {"name": "총 거래대금", "value": _format_krw(row.get("total_trade_value")), "inline": False},
         ]
 
     return []

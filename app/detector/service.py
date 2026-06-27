@@ -17,13 +17,17 @@ from app.detector.queries import (
     FETCH_STRATEGIES_SQL,
     FETCH_STRATEGY_RULES_SQL,
     INSERT_ALERT_SQL,
+    MARK_ALL_INACTIVE_BOT_DETECTION_STATUS_SQL,
+    MARK_INACTIVE_BOT_DETECTION_STATUS_SQL,
     RECENT_ALERT_SQL,
+    UPSERT_BOT_DETECTION_STATUS_SQL,
 )
 from app.detector.rules import (
     STRATEGY_DEFINITIONS,
     build_default_strategy_bundle,
     evaluate_rules,
     get_param_threshold,
+    normalize_rule_key,
 )
 
 logger = build_logger("upbit_detector", "detector.log")
@@ -91,14 +95,14 @@ def was_recently_alerted(market, strategy_key, cooldown_seconds):
 
 def build_reason(strategy_key, rule_reasons, rules):
     active_labels = []
+    definition_map = {
+        definition["rule_key"]: definition
+        for definition in STRATEGY_DEFINITIONS[strategy_key]["rules"]
+    }
     for rule in rules:
-        if rule["enabled"]:
-            for definition in STRATEGY_DEFINITIONS[strategy_key]["rules"]:
-                if definition["rule_key"] == rule["rule_key"]:
-                    active_labels.append(definition["label"])
-                    break
-            else:
-                active_labels.append(rule["rule_key"])
+        rule_key = normalize_rule_key(rule["rule_key"])
+        if rule["enabled"] and rule_key in definition_map:
+            active_labels.append(definition_map[rule_key]["label"])
     return f"active_rules={', '.join(active_labels)} | " + ", ".join(rule_reasons)
 
 
@@ -122,12 +126,52 @@ def insert_alert(strategy, row, reason):
                 float(row.get("tps_now") or row.get("tps") or 0),
                 float(row.get("tps_baseline") or 0),
                 float(row.get("price_change_pct") or row.get("price_drop_pct") or row.get("price_range_pct") or 0),
-                float(row.get("buy_1s_bid_trade_value") or row.get("ask_trade_value") or row.get("total_trade_value") or 0),
+                float(
+                    row.get("buy_1m_bid_trade_value")
+                    or row.get("buy_2m_bid_trade_value")
+                    or row.get("buy_1s_bid_trade_value")
+                    or row.get("ask_trade_value")
+                    or row.get("total_trade_value")
+                    or 0
+                ),
                 reason,
                 details,
             ),
         )
     conn.commit()
+
+
+def upsert_bot_detection_status(row, reason):
+    metrics = json.dumps(
+        {
+            key: value
+            for key, value in row.items()
+            if key not in {"market"}
+        },
+        ensure_ascii=False,
+    )
+    with conn.cursor() as cursor:
+        cursor.execute(
+            UPSERT_BOT_DETECTION_STATUS_SQL,
+            (
+                row["market"],
+                float(row.get("buy_sell_pair_count") or 0),
+                float(row.get("tps") or 0),
+                float(row["price_range_pct"]) if row.get("price_range_pct") is not None else None,
+                float(row["price_increase_pct"]) if row.get("price_increase_pct") is not None else None,
+                float(row.get("total_trade_value") or 0),
+                reason,
+                metrics,
+            ),
+        )
+
+
+def mark_inactive_bot_detection_status(active_markets):
+    with conn.cursor() as cursor:
+        if active_markets:
+            cursor.execute(MARK_INACTIVE_BOT_DETECTION_STATUS_SQL, (active_markets,))
+        else:
+            cursor.execute(MARK_ALL_INACTIVE_BOT_DETECTION_STATUS_SQL)
 
 
 def evaluate_spike_strategy(strategy, rules):
@@ -166,18 +210,23 @@ def evaluate_bot_detection_strategy(strategy, rules):
     trade_value_min = float(get_param_threshold(rules, "trade_value_min", 0))
     trade_value_max = float(get_param_threshold(rules, "trade_value_max", 50000))
     max_pair_gap_seconds = float(get_param_threshold(rules, "max_pair_gap_seconds", 3))
+    active_markets = []
     for row in fetch_bot_metrics(lookback_seconds, trade_value_min, trade_value_max, max_pair_gap_seconds):
         passed, rule_reasons = evaluate_rules("bot_detection", row, rules)
         if not passed:
             continue
+        active_markets.append(row["market"])
+        reason = build_reason("bot_detection", rule_reasons, rules)
+        upsert_bot_detection_status(row, reason)
         if was_recently_alerted(row["market"], "bot_detection", int(strategy["cooldown_seconds"])):
             logger.debug("alert skipped by cooldown: strategy=bot_detection market=%s", row["market"])
             continue
-        reason = build_reason("bot_detection", rule_reasons, rules)
         insert_alert(strategy, row, reason)
         webhook_url = strategy["webhook_url"] if strategy["webhook_enabled"] else ""
         send_discord_alert(logger, webhook_url, strategy, row, reason)
         logger.info("alert recorded: strategy=bot_detection market=%s %s", row["market"], reason)
+    mark_inactive_bot_detection_status(active_markets)
+    conn.commit()
 
 
 def run():
@@ -209,10 +258,14 @@ def run():
                 interval_seconds = int(strategy["interval_seconds"])
                 active_intervals.append(interval_seconds)
 
+                strategy_key = strategy["strategy_key"]
                 if not strategy["enabled"]:
+                    if strategy_key == "bot_detection" and next_run_at.get(strategy_key, 0) <= now_ts:
+                        mark_inactive_bot_detection_status([])
+                        conn.commit()
+                        next_run_at[strategy_key] = now_ts + interval_seconds
                     continue
 
-                strategy_key = strategy["strategy_key"]
                 if next_run_at.get(strategy_key, 0) > now_ts:
                     continue
 

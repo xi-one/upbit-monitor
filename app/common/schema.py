@@ -205,6 +205,28 @@ VALUES (1, 0, 0, '')
 ON CONFLICT (id) DO NOTHING;
 """
 
+BOT_DETECTION_STATUS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS bot_detection_status (
+    market TEXT PRIMARY KEY,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    first_detected_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    last_detected_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    cleared_at TIMESTAMPTZ NULL,
+    buy_sell_pair_count DOUBLE PRECISION NOT NULL DEFAULT 0,
+    tps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    price_range_pct DOUBLE PRECISION NULL,
+    price_increase_pct DOUBLE PRECISION NULL,
+    total_trade_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    metrics_json JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+"""
+
+BOT_DETECTION_STATUS_ACTIVE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_bot_detection_status_active_last_detected
+ON bot_detection_status (active, last_detected_at DESC);
+"""
+
 
 def ensure_market_sync_schema(conn):
     with conn.cursor() as cursor:
@@ -417,6 +439,8 @@ def ensure_runtime_schema(conn, defaults=None, default_rules=None):
         cursor.execute(STRATEGIES_TABLE_SQL)
         cursor.execute(STRATEGY_RULES_TABLE_SQL)
         cursor.execute(STRATEGY_RULES_INDEX_SQL)
+        cursor.execute(BOT_DETECTION_STATUS_TABLE_SQL)
+        cursor.execute(BOT_DETECTION_STATUS_ACTIVE_INDEX_SQL)
 
         _migrate_spike_strategy_from_legacy(cursor)
         _sync_strategy_rules(cursor, "spike", build_default_strategy_bundle("spike"))

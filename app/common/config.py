@@ -44,9 +44,13 @@ class MarketSyncConfig:
 
 @dataclass(frozen=True)
 class DetectorConfig:
-    ratio_5m_vs_1h: float = float(os.getenv("ALERT_RATIO_5M_VS_1H", "2.2"))
-    tps_multiplier: float = float(os.getenv("ALERT_TPS_MULTIPLIER", "1.5"))
+    tps_min: float = float(os.getenv("ALERT_TPS_MIN", os.getenv("ALERT_TPS_MULTIPLIER", "3.0")))
+    tps_max: float = float(os.getenv("ALERT_TPS_MAX", "9999"))
+    price_change_pct_min: float = float(os.getenv("ALERT_PRICE_CHANGE_PCT_MIN", "0.0"))
     price_change_pct_max: float = float(os.getenv("ALERT_PRICE_CHANGE_PCT_MAX", "2.0"))
+    buy_1m_bid_trade_value_min: float = float(
+        os.getenv("ALERT_BUY_1M_BID_TRADE_VALUE_MIN", os.getenv("ALERT_BUY_2M_BID_TRADE_VALUE_MIN", "100000000"))
+    )
     buy_1s_bid_trade_value_min: float = float(
         os.getenv("ALERT_BUY_1S_BID_TRADE_VALUE_MIN", os.getenv("ALERT_1H_AVG_TRADE_VALUE_MIN", "20000000"))
     )
