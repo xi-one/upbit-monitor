@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>봇 감지 현황</title>
+    <style>
+      :root {
+        --bg: #111827;
+        --panel: #f8f3e7;
+        --ink: #172033;
+        --muted: #6b7280;
+        --line: #dfd4bf;
+        --hot: #d9480f;
+        --hot-soft: #fff1e6;
+        --green: #0f766e;
+        --blue: #1d4ed8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 18% 12%, rgba(217, 72, 15, 0.38), transparent 26%),
+          radial-gradient(circle at 82% 0%, rgba(29, 78, 216, 0.30), transparent 24%),
+          linear-gradient(135deg, #1f2937 0%, #111827 58%, #0b1020 100%);
+      }
+      .page { max-width: 1280px; margin: 0 auto; padding: 34px 18px 48px; }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: flex-start;
+        color: white;
+        margin-bottom: 22px;
+      }
+      h1 { margin: 0 0 8px; font-size: 38px; letter-spacing: -0.04em; }
+      .hero p { margin: 0; color: #d1d5db; line-height: 1.6; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      .btn {
+        border: 1px solid rgba(255,255,255,0.24);
+        border-radius: 999px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.12);
+        color: white;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      .btn.tts-off {
+        background: #f97316;
+        border-color: #fdba74;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.20);
+      }
+      .btn.tts-on {
+        background: #0f766e;
+        border-color: #5eead4;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.24);
+      }
+      .status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+      .card {
+        background: rgba(248, 243, 231, 0.96);
+        border: 1px solid rgba(223, 212, 191, 0.9);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: 0 22px 50px rgba(0,0,0,0.22);
+      }
+      .stat-label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+      .stat-value { display: block; font-size: 30px; font-weight: 800; letter-spacing: -0.04em; }
+      .stat-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+      .table-card { padding: 0; overflow: hidden; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+      th {
+        background: #efe5d1;
+        color: #374151;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      tr.new-row { animation: flash 2.4s ease-out; }
+      @keyframes flash {
+        0% { background: #ffedd5; }
+        100% { background: transparent; }
+      }
+      .market { font-size: 18px; font-weight: 800; }
+      .market small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 600; }
+      .metric { font-weight: 800; }
+      .metric.hot { color: var(--hot); }
+      .empty { padding: 42px 20px; text-align: center; color: var(--muted); }
+      .footer-note { margin-top: 14px; color: #d1d5db; font-size: 13px; }
+      @media (max-width: 980px) {
+        .hero { flex-direction: column; }
+        .actions { justify-content: flex-start; }
+        .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        table, thead, tbody, th, td, tr { display: block; }
+        thead { display: none; }
+        tr { border-bottom: 1px solid var(--line); padding: 12px; }
+        td { border: 0; padding: 8px 4px; }
+        td::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+      }
+      @media (max-width: 560px) {
+        .status-grid { grid-template-columns: 1fr; }
+        h1 { font-size: 30px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <h1>봇 감지 현황</h1>
+          <p>현재 봇 패턴이 감지되고 있는 종목만 표시합니다. 더 이상 조건을 만족하지 않으면 목록에서 자동 제외됩니다.</p>
+        </div>
+        <div class="actions">
+          <button id="ttsButton" class="btn tts-off" type="button">음성 알림 활성화</button>
+        </div>
+      </section>
+
+      <section class="status-grid">
+        <div class="card">
+          <span class="stat-label">현재 감지 종목</span>
+          <span id="activeCount" class="stat-value">0</span>
+          <span class="stat-hint">active 상태인 종목 수</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">새로 추가</span>
+          <span id="newCount" class="stat-value">0</span>
+          <span class="stat-hint">페이지 열린 뒤 신규 감지</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">마지막 갱신</span>
+          <span id="lastRefresh" class="stat-value">-</span>
+          <span class="stat-hint">5초마다 자동 갱신</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">음성 상태</span>
+          <span id="ttsState" class="stat-value">꺼짐</span>
+          <span class="stat-hint">신규 종목 한글명 읽기</span>
+        </div>
+      </section>
+
+      <section class="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>종목</th>
+              <th>페어 수</th>
+              <th>TPS</th>
+              <th>가격 변동폭</th>
+              <th>가격 상승률</th>
+              <th>총 거래대금</th>
+              <th>최근 감지</th>
+            </tr>
+          </thead>
+          <tbody id="statusBody">
+            <tr><td class="empty" colspan="7">데이터를 불러오는 중입니다.</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <div class="footer-note">브라우저 정책 때문에 음성 알림은 버튼을 한 번 눌러야 활성화됩니다.</div>
+    </main>
+
+    <script>
+      let activeMarkets = new Set();
+      const newlySeenMarkets = new Set();
+      let initialized = false;
+      let ttsEnabled = false;
+      const speechQueue = [];
+      let isSpeaking = false;
+
+      const activeCount = document.getElementById("activeCount");
+      const newCount = document.getElementById("newCount");
+      const lastRefresh = document.getElementById("lastRefresh");
+      const ttsState = document.getElementById("ttsState");
+      const statusBody = document.getElementById("statusBody");
+      const ttsButton = document.getElementById("ttsButton");
+
+      function formatNumber(value, digits = 0) {
+        if (value === null || value === undefined) return "-";
+        return Number(value).toLocaleString("ko-KR", {
+          maximumFractionDigits: digits,
+          minimumFractionDigits: digits,
+        });
+      }
+
+      function formatKrw(value) {
+        if (value === null || value === undefined) return "-";
+        return `${Math.round(Number(value)).toLocaleString("ko-KR")}원`;
+      }
+
+      function formatTime(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        return date.toLocaleString("ko-KR", {
+          hour12: false,
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      }
+
+      function playNextSpeech() {
+        if (!ttsEnabled || !("speechSynthesis" in window) || isSpeaking) return;
+        const text = speechQueue.shift();
+        if (!text) return;
+
+        isSpeaking = true;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "ko-KR";
+        utterance.rate = 1.05;
+        utterance.onend = () => {
+          isSpeaking = false;
+          playNextSpeech();
+        };
+        utterance.onerror = () => {
+          isSpeaking = false;
+          playNextSpeech();
+        };
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function enqueueSpeech(text) {
+        if (!ttsEnabled || !("speechSynthesis" in window)) return;
+        speechQueue.push(text);
+        playNextSpeech();
+      }
+
+      function speakMarket(item) {
+        enqueueSpeech(item.korean_name || item.market);
+      }
+
+      function render(items) {
+        activeCount.textContent = items.length;
+        newCount.textContent = newlySeenMarkets.size;
+        lastRefresh.textContent = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+
+        if (items.length === 0) {
+          statusBody.innerHTML = '<tr><td class="empty" colspan="7">현재 봇 패턴 감지 종목이 없습니다.</td></tr>';
+          return;
+        }
+
+        statusBody.innerHTML = items.map((item) => {
+          const isNew = newlySeenMarkets.has(item.market);
+          return `
+            <tr class="${isNew ? "new-row" : ""}">
+              <td data-label="종목"><span class="market">${item.korean_name}<small>${item.market}</small></span></td>
+              <td data-label="페어 수"><span class="metric hot">${formatNumber(item.buy_sell_pair_count)}</span></td>
+              <td data-label="TPS"><span class="metric">${formatNumber(item.tps, 3)}</span></td>
+              <td data-label="가격 변동폭">${formatNumber(item.price_range_pct, 3)}%</td>
+              <td data-label="가격 상승률">${formatNumber(item.price_increase_pct, 3)}%</td>
+              <td data-label="총 거래대금">${formatKrw(item.total_trade_value)}</td>
+              <td data-label="최근 감지">${formatTime(item.last_detected_at)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      async function refreshStatus() {
+        try {
+          const response = await fetch("/detector-admin/api/bot-status", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          const items = data.items || [];
+          const currentMarkets = new Set(items.map((item) => item.market));
+
+          for (const item of items) {
+            if (!activeMarkets.has(item.market)) {
+              if (initialized) {
+                newlySeenMarkets.add(item.market);
+                speakMarket(item);
+              }
+            }
+          }
+
+          activeMarkets = currentMarkets;
+          initialized = true;
+          render(items);
+        } catch (error) {
+          statusBody.innerHTML = `<tr><td class="empty" colspan="7">봇 감지 현황을 불러오지 못했습니다: ${error.message}</td></tr>`;
+        }
+      }
+
+      ttsButton.addEventListener("click", () => {
+        ttsEnabled = !ttsEnabled;
+        ttsState.textContent = ttsEnabled ? "켜짐" : "꺼짐";
+        ttsButton.textContent = ttsEnabled ? "음성 알림 비활성화" : "음성 알림 활성화";
+        ttsButton.classList.toggle("tts-on", ttsEnabled);
+        ttsButton.classList.toggle("tts-off", !ttsEnabled);
+        if (ttsEnabled) {
+          enqueueSpeech("봇 감지 음성 알림을 시작합니다");
+        } else if ("speechSynthesis" in window) {
+          speechQueue.length = 0;
+          isSpeaking = false;
+          window.speechSynthesis.cancel();
+        }
+      });
+
+      refreshStatus();
+      setInterval(refreshStatus, 5000);
+    </script>
+  </body>
+</html>

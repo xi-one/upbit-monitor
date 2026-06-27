@@ -2,12 +2,12 @@ import base64
 from functools import wraps
 from urllib.parse import quote
 
-from flask import Flask, Response, redirect, render_template, request
+from flask import Flask, Response, jsonify, redirect, render_template, request
 from psycopg2.extras import RealDictCursor
 
 from app.common.config import DbConfig, DetectorWebConfig
 from app.common.db import create_connection
-from app.common.schema import ensure_market_sync_schema
+from app.common.schema import ensure_runtime_schema
 from app.detector.queries import (
     DELETE_STRATEGY_RULES_SQL,
     FETCH_STRATEGIES_SQL,
@@ -22,9 +22,10 @@ from app.markets.service import fetch_market_sync_status, refresh_market_univers
 app = Flask(__name__, template_folder="templates")
 db_conn = create_connection(DbConfig())
 db_conn.autocommit = True
+ensure_runtime_schema(db_conn)
 web_config = DetectorWebConfig()
 TEN_MILLION_KRW = 10_000_000
-TEN_MILLION_RULE_KEYS = {"buy_1s_bid_trade_value", "ask_trade_value"}
+TEN_MILLION_RULE_KEYS = {"buy_1s_bid_trade_value", "buy_1m_bid_trade_value", "buy_2m_bid_trade_value", "ask_trade_value"}
 PARAM_ONLY_RULE_KEYS = {
     "lookback_minutes",
     "lookback_seconds",
@@ -97,11 +98,11 @@ def _format_rule_for_display(rule: dict) -> dict:
         formatted_rule["threshold_value"] = raw_threshold_value
         formatted_rule["threshold_step"] = "0.1"
         formatted_rule["threshold_unit"] = "초"
-    elif formatted_rule["rule_key"] in {"min_tps", "max_tps"}:
+    elif formatted_rule["rule_key"] in {"tps_now", "tps_now_max", "min_tps", "max_tps"}:
         formatted_rule["threshold_value"] = raw_threshold_value
         formatted_rule["threshold_step"] = "0.1"
         formatted_rule["threshold_unit"] = "TPS"
-    elif formatted_rule["rule_key"] == "max_price_increase_pct":
+    elif formatted_rule["rule_key"] in {"price_change_pct_min", "price_change_pct", "max_price_increase_pct"}:
         formatted_rule["threshold_value"] = raw_threshold_value
         formatted_rule["threshold_step"] = "0.1"
         formatted_rule["threshold_unit"] = "%"
@@ -182,6 +183,56 @@ def build_render_context(strategy_key: str):
         "tabs": fetch_strategy_tabs(),
         "form_action": _strategy_path(strategy_key),
     }
+
+
+def _serialize_datetime(value):
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def fetch_active_bot_statuses():
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            SELECT
+                s.market,
+                COALESCE(m.korean_name, s.market) AS korean_name,
+                COALESCE(m.english_name, '') AS english_name,
+                s.first_detected_at,
+                s.last_detected_at,
+                s.buy_sell_pair_count,
+                s.tps,
+                s.price_range_pct,
+                s.price_increase_pct,
+                s.total_trade_value,
+                s.reason
+            FROM bot_detection_status s
+            LEFT JOIN monitored_markets m ON m.market = s.market
+            WHERE s.active = TRUE
+            ORDER BY s.buy_sell_pair_count DESC, s.tps DESC, s.last_detected_at DESC, s.market ASC
+            """
+        )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "market": row["market"],
+            "korean_name": row["korean_name"],
+            "english_name": row["english_name"],
+            "first_detected_at": _serialize_datetime(row["first_detected_at"]),
+            "last_detected_at": _serialize_datetime(row["last_detected_at"]),
+            "buy_sell_pair_count": float(row["buy_sell_pair_count"] or 0),
+            "tps": float(row["tps"] or 0),
+            "price_range_pct": float(row["price_range_pct"]) if row["price_range_pct"] is not None else None,
+            "price_increase_pct": float(row["price_increase_pct"]) if row["price_increase_pct"] is not None else None,
+            "total_trade_value": float(row["total_trade_value"] or 0),
+            "reason": row["reason"],
+        }
+        for row in rows
+    ]
 
 
 def save_strategy(strategy_key: str, form) -> None:
@@ -322,6 +373,24 @@ def refresh_markets():
     if result["ok"]:
         return redirect(f"{base}?markets_refreshed=1")
     return redirect(f"{base}?market_refresh_error={quote(result['error'])}")
+
+
+@app.route("/bot-dashboard")
+@requires_auth
+def bot_dashboard():
+    return render_template("bot_dashboard.html")
+
+
+@app.route("/api/bot-status")
+@requires_auth
+def bot_status_api():
+    rows = fetch_active_bot_statuses()
+    return jsonify(
+        {
+            "items": rows,
+            "count": len(rows),
+        }
+    )
 
 
 def run():

@@ -11,7 +11,6 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
 ONLY_BOT_MESSAGES = os.getenv("DISCORD_TTS_ONLY_BOT_MESSAGES", "true").lower() in {"1", "true", "yes", "on"}
-USERNAME_PREFIX = os.getenv("DISCORD_TTS_USERNAME_PREFIX", "false").lower() in {"1", "true", "yes", "on"}
 MAC_VOICE = os.getenv("DISCORD_TTS_MAC_VOICE", "").strip()
 UPBIT_MARKET_ALL_URL = os.getenv("UPBIT_MARKET_ALL_URL", "https://api.upbit.com/v1/market/all?is_details=false").strip()
 
@@ -76,28 +75,37 @@ def load_market_name_map() -> dict[str, str]:
 MARKET_NAME_MAP = load_market_name_map()
 
 
-def extract_speech_event(message: discord.Message) -> dict:
+def iter_message_texts(message: discord.Message):
     content = (message.content or "").strip()
-    if not content:
-        return {}
+    if content:
+        yield content
 
-    market_match = MARKET_PATTERN.search(content)
-    if market_match:
-        market = market_match.group(1)
-        spoken_market = MARKET_NAME_MAP.get(market, market)
-        return {
-            "market": market,
-            "spoken_market": spoken_market,
-            "speech_text": f"{message.author.display_name} {spoken_market}" if USERNAME_PREFIX else spoken_market,
-            "content": content,
-        }
+    for embed in message.embeds:
+        for value in (embed.title, embed.description):
+            if value:
+                yield str(value)
 
-    return {
-        "market": "",
-        "spoken_market": "",
-        "speech_text": f"{message.author.display_name} {content}" if USERNAME_PREFIX else content,
-        "content": content,
-    }
+        for field in embed.fields:
+            if field.name:
+                yield str(field.name)
+            if field.value:
+                yield str(field.value)
+
+
+def extract_speech_event(message: discord.Message) -> dict:
+    for text in iter_message_texts(message):
+        market_match = MARKET_PATTERN.search(text)
+        if market_match:
+            market = market_match.group(1)
+            spoken_market = MARKET_NAME_MAP.get(market, market)
+            return {
+                "market": market,
+                "spoken_market": spoken_market,
+                "speech_text": spoken_market,
+                "content": text,
+            }
+
+    return {}
 
 
 def print_speech_event(message: discord.Message, event: dict) -> None:

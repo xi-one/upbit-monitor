@@ -16,7 +16,6 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
 ONLY_BOT_MESSAGES = os.getenv("DISCORD_TTS_ONLY_BOT_MESSAGES", "true").lower() in {"1", "true", "yes", "on"}
-USERNAME_PREFIX = os.getenv("DISCORD_TTS_USERNAME_PREFIX", "false").lower() in {"1", "true", "yes", "on"}
 WINDOWS_VOICE = os.getenv("DISCORD_TTS_WINDOWS_VOICE", "").strip() or "ko-KR-InJoonNeural"
 WINDOWS_EDGE_RATE = os.getenv("DISCORD_TTS_WINDOWS_EDGE_RATE", "").strip() or "+0%"
 UPBIT_MARKET_ALL_URL = os.getenv("UPBIT_MARKET_ALL_URL", "https://api.upbit.com/v1/market/all?is_details=false").strip()
@@ -84,6 +83,23 @@ def load_market_name_map() -> dict[str, str]:
 MARKET_NAME_MAP = load_market_name_map()
 
 
+def iter_message_texts(message: discord.Message):
+    content = (message.content or "").strip()
+    if content:
+        yield content
+
+    for embed in message.embeds:
+        for value in (embed.title, embed.description):
+            if value:
+                yield str(value)
+
+        for field in embed.fields:
+            if field.name:
+                yield str(field.name)
+            if field.value:
+                yield str(field.value)
+
+
 async def print_available_edge_voices() -> None:
     try:
         voices = await edge_tts.list_voices()
@@ -138,31 +154,19 @@ def tts_worker():
 
 
 def extract_speech_event(message: discord.Message) -> dict:
-    content = (message.content or "").strip()
-    if not content:
-        return {}
+    for text in iter_message_texts(message):
+        market_match = MARKET_PATTERN.search(text)
+        if market_match:
+            market = market_match.group(1)
+            spoken_market = MARKET_NAME_MAP.get(market, market)
+            return {
+                "market": market,
+                "spoken_market": spoken_market,
+                "speech_text": spoken_market,
+                "content": text,
+            }
 
-    channel_name = getattr(message.channel, "name", "") or str(message.channel.id)
-    spoken_channel = re.sub(r"[-_]+", " ", channel_name).strip()
-    author_prefix = f"{message.author.display_name} " if USERNAME_PREFIX else ""
-
-    market_match = MARKET_PATTERN.search(content)
-    if market_match:
-        market = market_match.group(1)
-        spoken_market = MARKET_NAME_MAP.get(market, market)
-        return {
-            "market": market,
-            "spoken_market": spoken_market,
-            "speech_text": f"{spoken_channel} {author_prefix}{spoken_market}",
-            "content": content,
-        }
-
-    return {
-        "market": "",
-        "spoken_market": "",
-        "speech_text": f"{spoken_channel} {author_prefix}{content}",
-        "content": content,
-    }
+    return {}
 
 
 def print_speech_event(message: discord.Message, event: dict) -> None:

@@ -1,16 +1,19 @@
 FETCH_SPIKE_MARKET_METRICS_SQL = """
-WITH recent_5m AS (
+WITH measurement AS (
+    SELECT statement_timestamp() AS measured_at
+),
+recent_5m AS (
     SELECT
         market,
         COUNT(*)::double precision AS trade_count_5m,
         COALESCE(SUM(trade_value), 0)::double precision AS trade_value_5m,
         (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price_5m,
         (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price_5m
-    FROM trades
-    WHERE time >= now() - interval '5 minutes'
+    FROM trades, measurement
+    WHERE time >= measurement.measured_at - interval '5 minutes'
     GROUP BY market
 ),
-recent_5m_buy_1s AS (
+recent_1m_buy_1s AS (
     SELECT
         market,
         COALESCE(MAX(buy_trade_value_1s), 0)::double precision AS buy_1s_bid_trade_value
@@ -19,10 +22,21 @@ recent_5m_buy_1s AS (
             market,
             date_trunc('second', time) AS second_bucket,
             COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_trade_value_1s
-        FROM trades
-        WHERE time >= now() - interval '5 minutes'
+        FROM trades, measurement
+        WHERE time >= measurement.measured_at - interval '1 minute'
         GROUP BY market, date_trunc('second', time)
     ) buy_seconds
+    GROUP BY market
+),
+recent_1m AS (
+    SELECT
+        market,
+        COUNT(*)::double precision AS trade_count_1m,
+        COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_1m_bid_trade_value,
+        (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price_1m,
+        (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price_1m
+    FROM trades, measurement
+    WHERE time >= measurement.measured_at - interval '1 minute'
     GROUP BY market
 ),
 recent_1h AS (
@@ -30,21 +44,24 @@ recent_1h AS (
         market,
         COUNT(*)::double precision AS trade_count_1h,
         COALESCE(SUM(trade_value), 0)::double precision AS trade_value_1h
-    FROM trades
-    WHERE time >= now() - interval '1 hour'
+    FROM trades, measurement
+    WHERE time >= measurement.measured_at - interval '1 hour'
     GROUP BY market
 )
 SELECT
+    measurement.measured_at AS measurement_end_at,
+    measurement.measured_at - interval '1 minute' AS measurement_start_at,
     r5.market,
     r5.trade_value_5m,
     r1.trade_value_1h / 12.0 AS avg_1h_trade_value,
     COALESCE(buy1s.buy_1s_bid_trade_value, 0)::double precision AS buy_1s_bid_trade_value,
-    r5.trade_count_5m / 300.0 AS tps_now,
+    COALESCE(r1m.buy_1m_bid_trade_value, 0)::double precision AS buy_1m_bid_trade_value,
+    COALESCE(r1m.trade_count_1m, 0) / 60.0 AS tps_now,
     r1.trade_count_1h / 3600.0 AS tps_baseline,
     CASE
-        WHEN r5.first_price_5m IS NULL OR r5.first_price_5m = 0 OR r5.last_price_5m IS NULL
+        WHEN r1m.first_price_1m IS NULL OR r1m.first_price_1m = 0 OR r1m.last_price_1m IS NULL
         THEN NULL
-        ELSE ABS((r5.last_price_5m - r5.first_price_5m) / r5.first_price_5m * 100.0)
+        ELSE ABS((r1m.last_price_1m - r1m.first_price_1m) / r1m.first_price_1m * 100.0)
     END AS price_change_pct,
     CASE
         WHEN r1.trade_value_1h IS NULL OR r1.trade_value_1h = 0
@@ -57,8 +74,10 @@ SELECT
         ELSE (r5.trade_count_5m / 300.0) / (r1.trade_count_1h / 3600.0)
     END AS tps_ratio
 FROM recent_5m r5
+JOIN measurement ON TRUE
 JOIN recent_1h r1 ON r1.market = r5.market
-LEFT JOIN recent_5m_buy_1s buy1s ON buy1s.market = r5.market
+LEFT JOIN recent_1m_buy_1s buy1s ON buy1s.market = r5.market
+LEFT JOIN recent_1m r1m ON r1m.market = r5.market
 ORDER BY ratio_5m_vs_1h DESC, tps_ratio DESC;
 """
 
@@ -70,7 +89,7 @@ WITH recent_window AS (
         (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price,
         COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS ask_trade_value
     FROM trades
-    WHERE time >= now() - make_interval(mins => %s)
+    WHERE time >= statement_timestamp() - make_interval(mins => %s)
     GROUP BY market
 )
 SELECT
@@ -96,7 +115,7 @@ WITH recent_all AS (
         price,
         trade_value
     FROM trades
-    WHERE time >= now() - make_interval(secs => %s)
+    WHERE time >= statement_timestamp() - make_interval(secs => %s)
 ),
 candidate_trades AS (
     SELECT *
@@ -163,7 +182,7 @@ SELECT 1
 FROM market_alerts
 WHERE market = %s
   AND strategy_key = %s
-  AND detected_at >= now() - make_interval(secs => %s)
+  AND detected_at >= statement_timestamp() - make_interval(secs => %s)
 LIMIT 1
 """
 
@@ -182,7 +201,7 @@ INSERT INTO market_alerts (
     details_json
 )
 VALUES (
-    now(),
+    statement_timestamp(),
     %s,
     %s,
     %s,
@@ -194,6 +213,65 @@ VALUES (
     %s,
     %s::jsonb
 )
+"""
+
+UPSERT_BOT_DETECTION_STATUS_SQL = """
+INSERT INTO bot_detection_status (
+    market,
+    active,
+    first_detected_at,
+    last_detected_at,
+    cleared_at,
+    buy_sell_pair_count,
+    tps,
+    price_range_pct,
+    price_increase_pct,
+    total_trade_value,
+    reason,
+    metrics_json
+)
+VALUES (
+    %s,
+    TRUE,
+    statement_timestamp(),
+    statement_timestamp(),
+    NULL,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s::jsonb
+)
+ON CONFLICT (market) DO UPDATE SET
+    active = TRUE,
+    last_detected_at = EXCLUDED.last_detected_at,
+    cleared_at = NULL,
+    buy_sell_pair_count = EXCLUDED.buy_sell_pair_count,
+    tps = EXCLUDED.tps,
+    price_range_pct = EXCLUDED.price_range_pct,
+    price_increase_pct = EXCLUDED.price_increase_pct,
+    total_trade_value = EXCLUDED.total_trade_value,
+    reason = EXCLUDED.reason,
+    metrics_json = EXCLUDED.metrics_json
+"""
+
+MARK_INACTIVE_BOT_DETECTION_STATUS_SQL = """
+UPDATE bot_detection_status
+SET
+    active = FALSE,
+    cleared_at = statement_timestamp()
+WHERE active = TRUE
+  AND NOT (market = ANY(%s))
+"""
+
+MARK_ALL_INACTIVE_BOT_DETECTION_STATUS_SQL = """
+UPDATE bot_detection_status
+SET
+    active = FALSE,
+    cleared_at = statement_timestamp()
+WHERE active = TRUE
 """
 
 FETCH_STRATEGIES_SQL = """
