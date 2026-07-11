@@ -2,6 +2,7 @@ import json
 import signal
 import sys
 import time
+from datetime import date, datetime
 
 from psycopg2.extras import RealDictCursor
 
@@ -106,15 +107,26 @@ def build_reason(strategy_key, rule_reasons, rules):
     return f"active_rules={', '.join(active_labels)} | " + ", ".join(rule_reasons)
 
 
-def insert_alert(strategy, row, reason):
-    details = json.dumps(
+def json_default(value):
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def serialize_metrics(row):
+    return json.dumps(
         {
             key: value
             for key, value in row.items()
             if key not in {"market"}
         },
         ensure_ascii=False,
+        default=json_default,
     )
+
+
+def insert_alert(strategy, row, reason):
+    details = serialize_metrics(row)
     with conn.cursor() as cursor:
         cursor.execute(
             INSERT_ALERT_SQL,
@@ -142,14 +154,7 @@ def insert_alert(strategy, row, reason):
 
 
 def upsert_bot_detection_status(row, reason):
-    metrics = json.dumps(
-        {
-            key: value
-            for key, value in row.items()
-            if key not in {"market"}
-        },
-        ensure_ascii=False,
-    )
+    metrics = serialize_metrics(row)
     with conn.cursor() as cursor:
         cursor.execute(
             UPSERT_BOT_DETECTION_STATUS_SQL,
@@ -269,16 +274,20 @@ def run():
                 if next_run_at.get(strategy_key, 0) > now_ts:
                     continue
 
-                if strategy_key == "spike":
-                    evaluate_spike_strategy(strategy, rules)
-                elif strategy_key == "dip_buying":
-                    evaluate_dip_buying_strategy(strategy, rules)
-                elif strategy_key == "bot_detection":
-                    evaluate_bot_detection_strategy(strategy, rules)
-                else:
-                    logger.warning("unknown strategy skipped: %s", strategy_key)
-
-                next_run_at[strategy_key] = now_ts + interval_seconds
+                try:
+                    if strategy_key == "spike":
+                        evaluate_spike_strategy(strategy, rules)
+                    elif strategy_key == "dip_buying":
+                        evaluate_dip_buying_strategy(strategy, rules)
+                    elif strategy_key == "bot_detection":
+                        evaluate_bot_detection_strategy(strategy, rules)
+                    else:
+                        logger.warning("unknown strategy skipped: %s", strategy_key)
+                except Exception as exc:
+                    conn.rollback()
+                    logger.exception("strategy error: strategy=%s error=%s", strategy_key, exc)
+                finally:
+                    next_run_at[strategy_key] = now_ts + interval_seconds
 
             if active_intervals:
                 sleep_seconds = max(1, min(active_intervals))
