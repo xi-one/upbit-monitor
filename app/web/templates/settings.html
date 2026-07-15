@@ -233,6 +233,8 @@
         <a class="tab {% if tab.strategy_key == current_strategy_key %}active{% endif %}" href="{{ tab.path }}">{{ tab.name }}</a>
         {% endfor %}
         <a class="tab" href="/detector-admin/bot-dashboard">봇 감지 현황</a>
+        <a class="tab" href="/detector-admin/orderbook-settings">호가벽 설정</a>
+        <a class="tab" href="/detector-admin/orderbook-dashboard">호가벽 감지 현황</a>
       </div>
 
       {% if saved %}<div class="saved">설정이 저장되었습니다.</div>{% endif %}

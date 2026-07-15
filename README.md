@@ -12,6 +12,7 @@ The stack is intended to run with Docker Compose:
 
 - `timescaledb`: stores trade data and initializes the `trades` hypertable
 - `collector`: subscribes to Upbit websocket trades and writes batches to TimescaleDB
+- `orderbook-collector`: subscribes to Upbit websocket orderbooks/tickers and tracks ask-wall concentration
 - `detector`: scans recent trades, records alert events, and optionally sends webhook alerts
 - `grafana`: queries TimescaleDB and renders dashboards
 - `nginx`: exposes Grafana on port `80`
@@ -31,6 +32,27 @@ Default thresholds:
 - `DETECTOR_INTERVAL_SECONDS=10`
 
 All detector thresholds can be overridden through `.env`.
+
+## Orderbook Wall Dashboard
+
+호가벽 감지 현황은 nginx를 통해 아래 경로에서 확인한다.
+
+- `/detector-admin/orderbook-dashboard`
+
+`orderbook-collector`는 모니터링 종목의 Upbit 호가창과 ticker를 구독한다. 상위 매도호가 중 특정 가격대에 매도 거래대금이 집중되면 목록에 표시한다. 기존 매도벽 물량이 급감하더라도, 같은 가격대의 `BID` 체결 거래대금이 감소분 대비 기준 비율 이상 확인된 경우만 뚫림 상태로 별도 강조한다. 화면은 1초마다 자동 갱신된다.
+
+`.env` 설정:
+
+```env
+ORDERBOOK_WALL_DEPTH=15
+ORDERBOOK_WALL_MIN_VALUE_KRW=50000000
+ORDERBOOK_WALL_MIN_CONCENTRATION_RATIO=0.55
+ORDERBOOK_WALL_DROP_ALERT_PCT=70
+ORDERBOOK_WALL_BREACH_CONFIRM_WINDOW_SECONDS=3
+ORDERBOOK_WALL_BREACH_CONFIRM_BID_RATIO=0.5
+ORDERBOOK_WALL_BREACH_PRICE_TOLERANCE_PCT=0.1
+ORDERBOOK_WALL_BREACH_DISPLAY_SECONDS=60
+```
 
 ## Detector Admin
 

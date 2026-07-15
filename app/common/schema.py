@@ -227,6 +227,107 @@ CREATE INDEX IF NOT EXISTS idx_bot_detection_status_active_last_detected
 ON bot_detection_status (active, last_detected_at DESC);
 """
 
+ORDERBOOK_WALL_STATUS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS orderbook_wall_status (
+    market TEXT PRIMARY KEY,
+    active BOOLEAN NOT NULL DEFAULT FALSE,
+    breached BOOLEAN NOT NULL DEFAULT FALSE,
+    first_detected_at TIMESTAMPTZ NULL,
+    last_detected_at TIMESTAMPTZ NULL,
+    last_breached_at TIMESTAMPTZ NULL,
+    breached_until TIMESTAMPTZ NULL,
+    ask_price DOUBLE PRECISION NULL,
+    ask_size DOUBLE PRECISION NULL,
+    ask_value_krw DOUBLE PRECISION NOT NULL DEFAULT 0,
+    total_ask_value_krw DOUBLE PRECISION NOT NULL DEFAULT 0,
+    concentration_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    previous_ask_price DOUBLE PRECISION NULL,
+    previous_ask_size DOUBLE PRECISION NULL,
+    previous_ask_value_krw DOUBLE PRECISION NULL,
+    drop_pct DOUBLE PRECISION NULL,
+    bid_trade_value_at_wall DOUBLE PRECISION NULL,
+    breach_confirm_ratio DOUBLE PRECISION NULL,
+    acc_trade_price_24h DOUBLE PRECISION NULL,
+    orderbook_ts TIMESTAMPTZ NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    metrics_json JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+"""
+
+ORDERBOOK_WALL_STATUS_BID_VALUE_SQL = """
+ALTER TABLE orderbook_wall_status
+ADD COLUMN IF NOT EXISTS bid_trade_value_at_wall DOUBLE PRECISION NULL;
+"""
+
+ORDERBOOK_WALL_STATUS_CONFIRM_RATIO_SQL = """
+ALTER TABLE orderbook_wall_status
+ADD COLUMN IF NOT EXISTS breach_confirm_ratio DOUBLE PRECISION NULL;
+"""
+
+ORDERBOOK_WALL_STATUS_ACTIVE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_orderbook_wall_status_active_updated
+ON orderbook_wall_status (active, updated_at DESC);
+"""
+
+ORDERBOOK_WALL_STATUS_BREACHED_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_orderbook_wall_status_breached_until
+ON orderbook_wall_status (breached, breached_until DESC);
+"""
+
+ORDERBOOK_WALL_SETTINGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS orderbook_wall_settings (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    orderbook_depth INTEGER NOT NULL DEFAULT 15,
+    min_wall_value_krw DOUBLE PRECISION NOT NULL DEFAULT 50000000,
+    min_concentration_ratio DOUBLE PRECISION NOT NULL DEFAULT 0.55,
+    drop_alert_pct DOUBLE PRECISION NOT NULL DEFAULT 70,
+    breach_confirm_window_seconds DOUBLE PRECISION NOT NULL DEFAULT 3,
+    breach_confirm_bid_ratio DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+    breach_price_tolerance_pct DOUBLE PRECISION NOT NULL DEFAULT 0.1,
+    breach_display_seconds INTEGER NOT NULL DEFAULT 60,
+    webhook_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    webhook_url TEXT NOT NULL DEFAULT '',
+    cooldown_seconds INTEGER NOT NULL DEFAULT 300,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp()
+);
+"""
+
+ORDERBOOK_WALL_SETTINGS_WEBHOOK_ENABLED_SQL = """
+ALTER TABLE orderbook_wall_settings
+ADD COLUMN IF NOT EXISTS webhook_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+"""
+
+ORDERBOOK_WALL_SETTINGS_WEBHOOK_URL_SQL = """
+ALTER TABLE orderbook_wall_settings
+ADD COLUMN IF NOT EXISTS webhook_url TEXT NOT NULL DEFAULT '';
+"""
+
+ORDERBOOK_WALL_SETTINGS_COOLDOWN_SQL = """
+ALTER TABLE orderbook_wall_settings
+ADD COLUMN IF NOT EXISTS cooldown_seconds INTEGER NOT NULL DEFAULT 300;
+"""
+
+ORDERBOOK_WALL_SETTINGS_SEED_SQL = """
+INSERT INTO orderbook_wall_settings (
+    id,
+    enabled,
+    orderbook_depth,
+    min_wall_value_krw,
+    min_concentration_ratio,
+    drop_alert_pct,
+    breach_confirm_window_seconds,
+    breach_confirm_bid_ratio,
+    breach_price_tolerance_pct,
+    breach_display_seconds,
+    webhook_enabled,
+    webhook_url,
+    cooldown_seconds
+)
+VALUES (1, TRUE, 15, 50000000, 0.55, 70, 3, 0.5, 0.1, 60, FALSE, '', 300)
+ON CONFLICT (id) DO NOTHING;
+"""
+
 
 def ensure_market_sync_schema(conn):
     with conn.cursor() as cursor:
@@ -234,6 +335,21 @@ def ensure_market_sync_schema(conn):
         cursor.execute(MONITORED_MARKETS_SYMBOL_INDEX_SQL)
         cursor.execute(MARKET_SYNC_STATUS_TABLE_SQL)
         cursor.execute(MARKET_SYNC_STATUS_SEED_SQL)
+    conn.commit()
+
+
+def ensure_orderbook_schema(conn):
+    with conn.cursor() as cursor:
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_TABLE_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_WEBHOOK_ENABLED_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_WEBHOOK_URL_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_COOLDOWN_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_SEED_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_TABLE_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_BID_VALUE_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_CONFIRM_RATIO_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_ACTIVE_INDEX_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_BREACHED_INDEX_SQL)
     conn.commit()
 
 
@@ -441,6 +557,16 @@ def ensure_runtime_schema(conn, defaults=None, default_rules=None):
         cursor.execute(STRATEGY_RULES_INDEX_SQL)
         cursor.execute(BOT_DETECTION_STATUS_TABLE_SQL)
         cursor.execute(BOT_DETECTION_STATUS_ACTIVE_INDEX_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_TABLE_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_TABLE_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_WEBHOOK_ENABLED_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_WEBHOOK_URL_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_COOLDOWN_SQL)
+        cursor.execute(ORDERBOOK_WALL_SETTINGS_SEED_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_BID_VALUE_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_CONFIRM_RATIO_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_ACTIVE_INDEX_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_BREACHED_INDEX_SQL)
 
         _migrate_spike_strategy_from_legacy(cursor)
         _sync_strategy_rules(cursor, "spike", build_default_strategy_bundle("spike"))

@@ -235,6 +235,176 @@ def fetch_active_bot_statuses():
     ]
 
 
+def fetch_orderbook_wall_statuses():
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            SELECT
+                s.market,
+                COALESCE(m.korean_name, s.market) AS korean_name,
+                COALESCE(m.english_name, '') AS english_name,
+                s.active,
+                s.breached,
+                s.first_detected_at,
+                s.last_detected_at,
+                s.last_breached_at,
+                s.breached_until,
+                s.ask_price,
+                s.ask_size,
+                s.ask_value_krw,
+                s.total_ask_value_krw,
+                s.concentration_ratio,
+                s.previous_ask_price,
+                s.previous_ask_size,
+                s.previous_ask_value_krw,
+                s.drop_pct,
+                s.bid_trade_value_at_wall,
+                s.breach_confirm_ratio,
+                s.acc_trade_price_24h,
+                s.orderbook_ts,
+                s.updated_at
+            FROM orderbook_wall_status s
+            LEFT JOIN monitored_markets m ON m.market = s.market
+            WHERE s.active = TRUE
+               OR (s.breached = TRUE AND s.breached_until >= statement_timestamp())
+            ORDER BY
+                s.breached DESC,
+                s.ask_value_krw DESC,
+                s.concentration_ratio DESC,
+                s.acc_trade_price_24h DESC NULLS LAST,
+                s.market ASC
+            LIMIT 200
+            """
+        )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "market": row["market"],
+            "korean_name": row["korean_name"],
+            "english_name": row["english_name"],
+            "active": bool(row["active"]),
+            "breached": bool(row["breached"]),
+            "first_detected_at": _serialize_datetime(row["first_detected_at"]),
+            "last_detected_at": _serialize_datetime(row["last_detected_at"]),
+            "last_breached_at": _serialize_datetime(row["last_breached_at"]),
+            "breached_until": _serialize_datetime(row["breached_until"]),
+            "ask_price": float(row["ask_price"]) if row["ask_price"] is not None else None,
+            "ask_size": float(row["ask_size"]) if row["ask_size"] is not None else None,
+            "ask_value_krw": float(row["ask_value_krw"] or 0),
+            "total_ask_value_krw": float(row["total_ask_value_krw"] or 0),
+            "concentration_ratio": float(row["concentration_ratio"] or 0),
+            "previous_ask_price": float(row["previous_ask_price"]) if row["previous_ask_price"] is not None else None,
+            "previous_ask_size": float(row["previous_ask_size"]) if row["previous_ask_size"] is not None else None,
+            "previous_ask_value_krw": float(row["previous_ask_value_krw"]) if row["previous_ask_value_krw"] is not None else None,
+            "drop_pct": float(row["drop_pct"]) if row["drop_pct"] is not None else None,
+            "bid_trade_value_at_wall": float(row["bid_trade_value_at_wall"]) if row["bid_trade_value_at_wall"] is not None else None,
+            "breach_confirm_ratio": float(row["breach_confirm_ratio"]) if row["breach_confirm_ratio"] is not None else None,
+            "acc_trade_price_24h": float(row["acc_trade_price_24h"]) if row["acc_trade_price_24h"] is not None else None,
+            "orderbook_ts": _serialize_datetime(row["orderbook_ts"]),
+            "updated_at": _serialize_datetime(row["updated_at"]),
+        }
+        for row in rows
+    ]
+
+
+def fetch_orderbook_wall_settings():
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            SELECT
+                enabled,
+                orderbook_depth,
+                min_wall_value_krw,
+                min_concentration_ratio,
+                drop_alert_pct,
+                breach_confirm_window_seconds,
+                breach_confirm_bid_ratio,
+                breach_price_tolerance_pct,
+                breach_display_seconds,
+                webhook_enabled,
+                webhook_url,
+                cooldown_seconds,
+                updated_at
+            FROM orderbook_wall_settings
+            WHERE id = 1
+            """
+        )
+        row = cursor.fetchone()
+
+    return {
+        "enabled": bool(row["enabled"]),
+        "orderbook_depth": int(row["orderbook_depth"]),
+        "min_wall_value_krw": float(row["min_wall_value_krw"]),
+        "min_concentration_ratio": float(row["min_concentration_ratio"]),
+        "min_concentration_pct": float(row["min_concentration_ratio"]) * 100,
+        "drop_alert_pct": float(row["drop_alert_pct"]),
+        "breach_confirm_window_seconds": float(row["breach_confirm_window_seconds"]),
+        "breach_confirm_bid_ratio": float(row["breach_confirm_bid_ratio"]),
+        "breach_confirm_bid_pct": float(row["breach_confirm_bid_ratio"]) * 100,
+        "breach_price_tolerance_pct": float(row["breach_price_tolerance_pct"]),
+        "breach_display_seconds": int(row["breach_display_seconds"]),
+        "webhook_enabled": bool(row["webhook_enabled"]),
+        "webhook_url": row["webhook_url"],
+        "cooldown_seconds": int(row["cooldown_seconds"]),
+        "updated_at": row["updated_at"],
+    }
+
+
+def save_orderbook_wall_settings(form) -> None:
+    with db_conn.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO orderbook_wall_settings (
+                id,
+                enabled,
+                orderbook_depth,
+                min_wall_value_krw,
+                min_concentration_ratio,
+                drop_alert_pct,
+                breach_confirm_window_seconds,
+                breach_confirm_bid_ratio,
+                breach_price_tolerance_pct,
+                breach_display_seconds,
+                webhook_enabled,
+                webhook_url,
+                cooldown_seconds,
+                updated_at
+            )
+            VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, statement_timestamp())
+            ON CONFLICT (id) DO UPDATE SET
+                enabled = EXCLUDED.enabled,
+                orderbook_depth = EXCLUDED.orderbook_depth,
+                min_wall_value_krw = EXCLUDED.min_wall_value_krw,
+                min_concentration_ratio = EXCLUDED.min_concentration_ratio,
+                drop_alert_pct = EXCLUDED.drop_alert_pct,
+                breach_confirm_window_seconds = EXCLUDED.breach_confirm_window_seconds,
+                breach_confirm_bid_ratio = EXCLUDED.breach_confirm_bid_ratio,
+                breach_price_tolerance_pct = EXCLUDED.breach_price_tolerance_pct,
+                breach_display_seconds = EXCLUDED.breach_display_seconds,
+                webhook_enabled = EXCLUDED.webhook_enabled,
+                webhook_url = EXCLUDED.webhook_url,
+                cooldown_seconds = EXCLUDED.cooldown_seconds,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                form.get("enabled") == "on",
+                max(1, int(form.get("orderbook_depth", 15))),
+                float(form.get("min_wall_value_krw", 50000000)),
+                float(form.get("min_concentration_pct", 55)) / 100.0,
+                float(form.get("drop_alert_pct", 70)),
+                max(0.1, float(form.get("breach_confirm_window_seconds", 3))),
+                float(form.get("breach_confirm_bid_pct", 50)) / 100.0,
+                float(form.get("breach_price_tolerance_pct", 0.1)),
+                max(1, int(form.get("breach_display_seconds", 60))),
+                form.get("webhook_enabled") == "on",
+                form.get("webhook_url", "").strip(),
+                max(0, int(form.get("cooldown_seconds", 300))),
+            ),
+        )
+    db_conn.commit()
+
+
 def save_strategy(strategy_key: str, form) -> None:
     context = build_render_context(strategy_key)
     strategy_definition = STRATEGY_DEFINITIONS[strategy_key]
@@ -381,6 +551,27 @@ def bot_dashboard():
     return render_template("bot_dashboard.html")
 
 
+@app.route("/orderbook-dashboard")
+@requires_auth
+def orderbook_dashboard():
+    return render_template("orderbook_dashboard.html")
+
+
+@app.route("/orderbook-settings", methods=["GET", "POST"])
+@requires_auth
+def orderbook_settings():
+    if request.method == "POST":
+        save_orderbook_wall_settings(request.form)
+        return redirect("/detector-admin/orderbook-settings?saved=1")
+
+    return render_template(
+        "orderbook_settings.html",
+        settings=fetch_orderbook_wall_settings(),
+        tabs=fetch_strategy_tabs(),
+        saved=request.args.get("saved") == "1",
+    )
+
+
 @app.route("/api/bot-status")
 @requires_auth
 def bot_status_api():
@@ -389,6 +580,22 @@ def bot_status_api():
         {
             "items": rows,
             "count": len(rows),
+        }
+    )
+
+
+@app.route("/api/orderbook-walls")
+@requires_auth
+def orderbook_walls_api():
+    rows = fetch_orderbook_wall_statuses()
+    breached_count = sum(1 for row in rows if row["breached"])
+    active_count = sum(1 for row in rows if row["active"])
+    return jsonify(
+        {
+            "items": rows,
+            "count": len(rows),
+            "active_count": active_count,
+            "breached_count": breached_count,
         }
     )
 

@@ -37,9 +37,26 @@ class MarketSyncConfig:
     market_cap_limit_krw: float = float(os.getenv("MARKET_CAP_LIMIT_KRW", "1000000000000"))
     usdkrw_rate: float = float(os.getenv("MARKET_CAP_USDKRW", "1350"))
     include_unknown_markets: bool = os.getenv("MARKET_INCLUDE_UNKNOWN", "true").lower() in {"1", "true", "yes", "on"}
+    exclude_markets: str = os.getenv("MARKET_EXCLUDE_MARKETS", "KRW-DOT")
     refresh_interval_seconds: int = int(os.getenv("MARKET_REFRESH_INTERVAL_SECONDS", "86400"))
     failure_retry_seconds: int = int(os.getenv("MARKET_REFRESH_FAILURE_RETRY_SECONDS", "300"))
     request_timeout_seconds: int = int(os.getenv("MARKET_REFRESH_REQUEST_TIMEOUT_SECONDS", "20"))
+
+
+@dataclass(frozen=True)
+class OrderbookWallConfig:
+    ping_interval: int = 30
+    ping_timeout: int = 10
+    reconnect_delay_seconds: int = 5
+    refresh_check_interval_seconds: int = int(os.getenv("MARKET_REFRESH_CHECK_INTERVAL_SECONDS", "5"))
+    orderbook_depth: int = int(os.getenv("ORDERBOOK_WALL_DEPTH", "15"))
+    min_wall_value_krw: float = float(os.getenv("ORDERBOOK_WALL_MIN_VALUE_KRW", "50000000"))
+    min_concentration_ratio: float = float(os.getenv("ORDERBOOK_WALL_MIN_CONCENTRATION_RATIO", "0.55"))
+    drop_alert_pct: float = float(os.getenv("ORDERBOOK_WALL_DROP_ALERT_PCT", "70"))
+    breach_confirm_window_seconds: float = float(os.getenv("ORDERBOOK_WALL_BREACH_CONFIRM_WINDOW_SECONDS", "3"))
+    breach_confirm_bid_ratio: float = float(os.getenv("ORDERBOOK_WALL_BREACH_CONFIRM_BID_RATIO", "0.5"))
+    breach_price_tolerance_pct: float = float(os.getenv("ORDERBOOK_WALL_BREACH_PRICE_TOLERANCE_PCT", "0.1"))
+    breach_display_seconds: int = int(os.getenv("ORDERBOOK_WALL_BREACH_DISPLAY_SECONDS", "60"))
 
 
 @dataclass(frozen=True)
