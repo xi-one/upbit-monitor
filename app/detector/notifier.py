@@ -1,4 +1,5 @@
 import time
+import json
 from datetime import timezone
 from zoneinfo import ZoneInfo
 
@@ -29,6 +30,41 @@ def _format_krw(value):
     return f"{float(value):,.0f}원"
 
 
+def _format_price(value):
+    if value is None:
+        return "-"
+    price = float(value)
+    digits = 0
+    threshold = 100
+    while price < threshold and digits < 8:
+        digits += 1
+        threshold /= 10
+    return f"{price:,.{digits}f}원"
+
+
+def _format_quantity(value):
+    if value is None:
+        return "-"
+    return f"{float(value):,.8f}".rstrip("0").rstrip(".")
+
+
+def _format_buy_volume_by_price(value):
+    if not value:
+        return "-"
+    if isinstance(value, str):
+        value = json.loads(value)
+
+    lines = []
+    for item in value:
+        line = f"{_format_price(item.get('price'))}: {_format_quantity(item.get('volume'))}개"
+        if len("\n".join(lines + [line])) > 1000:
+            remaining = len(value) - len(lines)
+            lines.append(f"... 외 {remaining}개 가격대")
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _build_embed_fields(strategy_key, row):
     if strategy_key == "spike":
         return [
@@ -38,8 +74,10 @@ def _build_embed_fields(strategy_key, row):
                 "inline": False,
             },
             {"name": "최근 1분 매수 거래대금", "value": _format_krw(row.get("buy_1m_bid_trade_value")), "inline": False},
+            {"name": "최근 1분 매수 평단가", "value": _format_price(row.get("buy_average_price")), "inline": True},
             {"name": "최근 1분 평균 TPS", "value": _format_float(row.get("tps_now"), 3), "inline": True},
             {"name": "최근 1분 가격 변동률", "value": _format_float(row.get("price_change_pct"), 2, "%"), "inline": True},
+            {"name": "가격대별 매수 수량", "value": _format_buy_volume_by_price(row.get("buy_volume_by_price")), "inline": False},
         ]
 
     if strategy_key == "dip_buying":
