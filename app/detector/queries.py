@@ -39,6 +39,30 @@ recent_1m AS (
     WHERE time >= measurement.measured_at - interval '1 minute'
     GROUP BY market
 ),
+recent_1m_buy_by_price AS (
+    SELECT
+        market,
+        price,
+        COALESCE(SUM(volume), 0)::double precision AS buy_volume
+    FROM trades, measurement
+    WHERE time >= measurement.measured_at - interval '1 minute'
+      AND side = 'BID'
+    GROUP BY market, price
+),
+recent_1m_buy_summary AS (
+    SELECT
+        market,
+        CASE
+            WHEN SUM(buy_volume) = 0 THEN NULL
+            ELSE ROUND((SUM(price * buy_volume) / SUM(buy_volume))::numeric, 6)
+        END::double precision AS buy_average_price,
+        JSONB_AGG(
+            JSONB_BUILD_OBJECT('price', price, 'volume', buy_volume)
+            ORDER BY price DESC
+        ) AS buy_volume_by_price
+    FROM recent_1m_buy_by_price
+    GROUP BY market
+),
 recent_1h AS (
     SELECT
         market,
@@ -56,6 +80,8 @@ SELECT
     r1.trade_value_1h / 12.0 AS avg_1h_trade_value,
     COALESCE(buy1s.buy_1s_bid_trade_value, 0)::double precision AS buy_1s_bid_trade_value,
     COALESCE(r1m.buy_1m_bid_trade_value, 0)::double precision AS buy_1m_bid_trade_value,
+    buy_summary.buy_average_price,
+    buy_summary.buy_volume_by_price,
     COALESCE(r1m.trade_count_1m, 0) / 60.0 AS tps_now,
     r1.trade_count_1h / 3600.0 AS tps_baseline,
     CASE
@@ -78,6 +104,7 @@ JOIN measurement ON TRUE
 JOIN recent_1h r1 ON r1.market = r5.market
 LEFT JOIN recent_1m_buy_1s buy1s ON buy1s.market = r5.market
 LEFT JOIN recent_1m r1m ON r1m.market = r5.market
+LEFT JOIN recent_1m_buy_summary buy_summary ON buy_summary.market = r5.market
 ORDER BY ratio_5m_vs_1h DESC, tps_ratio DESC;
 """
 

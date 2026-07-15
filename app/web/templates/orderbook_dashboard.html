@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>호가벽 감지 현황</title>
+    <style>
+      :root {
+        --bg: #101820;
+        --panel: #f4efe3;
+        --ink: #172033;
+        --muted: #697386;
+        --line: #ded2bd;
+        --danger: #dc2626;
+        --danger-soft: #fee2e2;
+        --wall: #0f766e;
+        --wall-soft: #ccfbf1;
+        --gold: #b45309;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 12% 8%, rgba(220, 38, 38, 0.35), transparent 28%),
+          radial-gradient(circle at 88% 12%, rgba(15, 118, 110, 0.36), transparent 26%),
+          linear-gradient(135deg, #111827 0%, #182230 58%, #09111f 100%);
+      }
+      .page { max-width: 1380px; margin: 0 auto; padding: 34px 18px 48px; }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 18px;
+        color: white;
+        margin-bottom: 22px;
+      }
+      h1 { margin: 0 0 8px; font-size: 38px; letter-spacing: -0.04em; }
+      .hero p { margin: 0; color: #d1d5db; line-height: 1.6; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      .btn {
+        display: inline-block;
+        border: 1px solid rgba(255,255,255,0.24);
+        border-radius: 999px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.12);
+        color: white;
+        text-decoration: none;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .btn.tts-off {
+        background: #f97316;
+        border-color: #fdba74;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.20);
+      }
+      .btn.tts-on {
+        background: #0f766e;
+        border-color: #5eead4;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.24);
+      }
+      .status-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+      .card {
+        background: rgba(244, 239, 227, 0.96);
+        border: 1px solid rgba(222, 210, 189, 0.9);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: 0 22px 50px rgba(0,0,0,0.22);
+      }
+      .stat-label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+      .stat-value { display: block; font-size: 30px; font-weight: 900; letter-spacing: -0.04em; }
+      .stat-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+      .breach-card {
+        display: none;
+        margin-bottom: 18px;
+        border-color: rgba(220, 38, 38, 0.32);
+        background: linear-gradient(135deg, #fee2e2 0%, #fff7ed 100%);
+      }
+      .breach-card.visible { display: block; }
+      .breach-title { margin: 0 0 12px; color: #991b1b; font-size: 20px; }
+      .breach-list { display: flex; flex-wrap: wrap; gap: 10px; }
+      .breach-pill {
+        border-radius: 999px;
+        padding: 9px 12px;
+        background: #991b1b;
+        color: white;
+        font-weight: 900;
+      }
+      .table-card { padding: 0; overflow: hidden; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+      th {
+        background: #e9deca;
+        color: #374151;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      tr.breached { background: var(--danger-soft); animation: breachFlash 1.4s ease-in-out infinite alternate; }
+      @keyframes breachFlash {
+        from { box-shadow: inset 5px 0 0 var(--danger); }
+        to { box-shadow: inset 10px 0 0 var(--danger); }
+      }
+      .market { font-size: 18px; font-weight: 900; }
+      .market small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .badge.wall { background: var(--wall-soft); color: var(--wall); }
+      .badge.breach { background: var(--danger); color: white; }
+      .metric { font-weight: 900; }
+      .metric.gold { color: var(--gold); }
+      .metric.danger { color: var(--danger); }
+      .empty { padding: 42px 20px; text-align: center; color: var(--muted); }
+      .footer-note { margin-top: 14px; color: #d1d5db; font-size: 13px; }
+      @media (max-width: 1080px) {
+        .hero { flex-direction: column; }
+        .actions { justify-content: flex-start; }
+        .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        table, thead, tbody, th, td, tr { display: block; }
+        thead { display: none; }
+        tr { border-bottom: 1px solid var(--line); padding: 12px; }
+        td { border: 0; padding: 8px 4px; }
+        td::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+      }
+      @media (max-width: 560px) {
+        .status-grid { grid-template-columns: 1fr; }
+        h1 { font-size: 30px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <h1>호가벽 감지 현황</h1>
+          <p>상위 매도호가 중 특정 가격대에 물량이 집중된 종목을 표시하고, 해당 매도 물량이 급감하면 뚫림으로 강조합니다.</p>
+        </div>
+        <div class="actions">
+          <a class="btn" href="/detector-admin/bot-dashboard">봇 감지 현황</a>
+          <a class="btn" href="/detector-admin/orderbook-settings">호가벽 설정</a>
+          <button id="ttsButton" class="btn tts-off" type="button">음성 알림 활성화</button>
+        </div>
+      </section>
+
+      <section class="status-grid">
+        <div class="card">
+          <span class="stat-label">감지 종목</span>
+          <span id="activeCount" class="stat-value">0</span>
+          <span class="stat-hint">현재 매도벽 조건 충족</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">뚫림 알림</span>
+          <span id="breachedCount" class="stat-value">0</span>
+          <span class="stat-hint">최근 급감 표시 대상</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">표시 종목</span>
+          <span id="rowCount" class="stat-value">0</span>
+          <span class="stat-hint">감지 + 최근 뚫림</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">마지막 갱신</span>
+          <span id="lastRefresh" class="stat-value">-</span>
+          <span class="stat-hint">1초마다 자동 갱신</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">음성 상태</span>
+          <span id="ttsState" class="stat-value">꺼짐</span>
+          <span class="stat-hint">뚫림 종목 한글명 읽기</span>
+        </div>
+      </section>
+
+      <section id="breachCard" class="card breach-card">
+        <h2 class="breach-title">매도벽 뚫림 감지</h2>
+        <div id="breachList" class="breach-list"></div>
+      </section>
+
+      <section class="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>상태</th>
+              <th>종목</th>
+              <th>매도벽 가격</th>
+              <th>매도벽 물량</th>
+              <th>매도벽 거래대금</th>
+              <th>집중도</th>
+              <th>감소율</th>
+              <th>24H 거래대금</th>
+              <th>갱신</th>
+            </tr>
+          </thead>
+          <tbody id="statusBody">
+            <tr><td class="empty" colspan="9">데이터를 불러오는 중입니다.</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <div class="footer-note">매도벽 기준값은 `ORDERBOOK_WALL_*` 환경변수로 조정할 수 있습니다. 브라우저 정책 때문에 음성 알림은 버튼을 한 번 눌러야 활성화됩니다.</div>
+    </main>
+
+    <script>
+      const activeCount = document.getElementById("activeCount");
+      const breachedCount = document.getElementById("breachedCount");
+      const rowCount = document.getElementById("rowCount");
+      const lastRefresh = document.getElementById("lastRefresh");
+      const ttsState = document.getElementById("ttsState");
+      const ttsButton = document.getElementById("ttsButton");
+      const breachCard = document.getElementById("breachCard");
+      const breachList = document.getElementById("breachList");
+      const statusBody = document.getElementById("statusBody");
+      const activeBreaches = new Set();
+      const speechQueue = [];
+      let initialized = false;
+      let ttsEnabled = false;
+      let isSpeaking = false;
+
+      function formatNumber(value, digits = 0) {
+        if (value === null || value === undefined) return "-";
+        return Number(value).toLocaleString("ko-KR", {
+          maximumFractionDigits: digits,
+          minimumFractionDigits: digits,
+        });
+      }
+
+      function formatKrw(value) {
+        if (value === null || value === undefined) return "-";
+        return `${Math.round(Number(value)).toLocaleString("ko-KR")}원`;
+      }
+
+      function formatPrice(value) {
+        if (value === null || value === undefined) return "-";
+        const price = Number(value);
+        let digits = 0;
+        let threshold = 100;
+        while (price < threshold && digits < 8) {
+          digits += 1;
+          threshold /= 10;
+        }
+        return `${price.toLocaleString("ko-KR", {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        })}원`;
+      }
+
+      function formatMillionKrw(value) {
+        if (value === null || value === undefined) return "-";
+        return `${Math.round(Number(value) / 1000000).toLocaleString("ko-KR")}백만`;
+      }
+
+      function formatPct(value, digits = 1) {
+        if (value === null || value === undefined) return "-";
+        return `${formatNumber(Number(value), digits)}%`;
+      }
+
+      function formatRatio(value) {
+        if (value === null || value === undefined) return "-";
+        return `${formatNumber(Number(value) * 100, 1)}%`;
+      }
+
+      function formatTime(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        return date.toLocaleTimeString("ko-KR", { hour12: false });
+      }
+
+      function playNextSpeech() {
+        if (!ttsEnabled || !("speechSynthesis" in window) || isSpeaking) return;
+        const text = speechQueue.shift();
+        if (!text) return;
+
+        isSpeaking = true;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "ko-KR";
+        utterance.rate = 1.05;
+        utterance.onend = () => {
+          isSpeaking = false;
+          playNextSpeech();
+        };
+        utterance.onerror = () => {
+          isSpeaking = false;
+          playNextSpeech();
+        };
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function enqueueSpeech(text) {
+        if (!ttsEnabled || !("speechSynthesis" in window)) return;
+        speechQueue.push(text);
+        playNextSpeech();
+      }
+
+      function detectNewBreaches(items) {
+        const currentBreaches = new Set(items.filter((item) => item.breached).map((item) => item.market));
+        for (const item of items) {
+          if (item.breached && !activeBreaches.has(item.market)) {
+            if (initialized) enqueueSpeech(item.korean_name || item.market);
+          }
+        }
+        activeBreaches.clear();
+        currentBreaches.forEach((market) => activeBreaches.add(market));
+      }
+
+      function renderBreaches(items) {
+        const breaches = items.filter((item) => item.breached);
+        breachCard.classList.toggle("visible", breaches.length > 0);
+        breachList.innerHTML = breaches.map((item) => `
+          <span class="breach-pill">${item.korean_name} ${formatPct(item.drop_pct)} 감소</span>
+        `).join("");
+      }
+
+      function renderTable(items) {
+        if (items.length === 0) {
+          statusBody.innerHTML = '<tr><td class="empty" colspan="9">현재 감지된 매도벽 종목이 없습니다.</td></tr>';
+          return;
+        }
+
+        statusBody.innerHTML = items.map((item) => {
+          const status = item.breached
+            ? '<span class="badge breach">뚫림</span>'
+            : '<span class="badge wall">매도벽</span>';
+          return `
+            <tr class="${item.breached ? "breached" : ""}">
+              <td data-label="상태">${status}</td>
+              <td data-label="종목"><span class="market">${item.korean_name}<small>${item.market}</small></span></td>
+              <td data-label="매도벽 가격"><span class="metric">${formatPrice(item.ask_price)}</span></td>
+              <td data-label="매도벽 물량">${formatNumber(item.ask_size, 4)}</td>
+              <td data-label="매도벽 거래대금"><span class="metric gold">${formatKrw(item.ask_value_krw)}</span></td>
+              <td data-label="집중도">${formatRatio(item.concentration_ratio)}</td>
+              <td data-label="감소율"><span class="metric danger">${formatPct(item.drop_pct)}</span></td>
+              <td data-label="24H 거래대금">${formatMillionKrw(item.acc_trade_price_24h)}</td>
+              <td data-label="갱신">${formatTime(item.updated_at)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      async function refreshStatus() {
+        try {
+          const response = await fetch("/detector-admin/api/orderbook-walls", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          const items = data.items || [];
+
+          activeCount.textContent = data.active_count || 0;
+          breachedCount.textContent = data.breached_count || 0;
+          rowCount.textContent = items.length;
+          lastRefresh.textContent = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+
+          detectNewBreaches(items);
+          initialized = true;
+          renderBreaches(items);
+          renderTable(items);
+        } catch (error) {
+          statusBody.innerHTML = `<tr><td class="empty" colspan="9">호가벽 현황을 불러오지 못했습니다: ${error.message}</td></tr>`;
+        }
+      }
+
+      ttsButton.addEventListener("click", () => {
+        ttsEnabled = !ttsEnabled;
+        ttsState.textContent = ttsEnabled ? "켜짐" : "꺼짐";
+        ttsButton.textContent = ttsEnabled ? "음성 알림 비활성화" : "음성 알림 활성화";
+        ttsButton.classList.toggle("tts-on", ttsEnabled);
+        ttsButton.classList.toggle("tts-off", !ttsEnabled);
+        if (ttsEnabled) {
+          enqueueSpeech("호가벽 뚫림 음성 알림을 시작합니다");
+        } else if ("speechSynthesis" in window) {
+          speechQueue.length = 0;
+          isSpeaking = false;
+          window.speechSynthesis.cancel();
+        }
+      });
+
+      refreshStatus();
+      setInterval(refreshStatus, 1000);
+    </script>
+  </body>
+</html>

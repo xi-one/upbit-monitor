@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>호가벽 설정</title>
+    <style>
+      :root {
+        --card: #fffdf8;
+        --ink: #1f2937;
+        --muted: #6b7280;
+        --line: #ded5c4;
+        --accent: #0f766e;
+        --accent-soft: #d7f3ee;
+        --accent-strong: #115e59;
+        --off-soft: #fff7ed;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.10), transparent 28%),
+          linear-gradient(180deg, #f6f3ea 0%, #efe7d8 100%);
+      }
+      .page { max-width: 1180px; margin: 0 auto; padding: 36px 20px 56px; }
+      .hero { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 22px; }
+      h1 { margin: 0 0 10px; font-size: 36px; letter-spacing: -0.03em; }
+      p.meta { margin: 0; color: var(--muted); max-width: 760px; line-height: 1.6; }
+      .stamp {
+        min-width: 240px;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 253, 248, 0.82);
+      }
+      .label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .value { display: block; font-size: 15px; font-weight: 700; }
+      .tabs { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 999px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: rgba(255, 253, 248, 0.85);
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .tab.active { background: var(--accent-strong); color: white; border-color: var(--accent-strong); }
+      .saved {
+        margin-bottom: 18px;
+        background: #ecfdf5;
+        border: 1px solid #10b981;
+        color: #065f46;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+      .section {
+        background: rgba(255, 253, 248, 0.90);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 20px 45px rgba(31, 41, 55, 0.06);
+      }
+      .section + .section { margin-top: 22px; }
+      .section h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.02em; }
+      .section p { margin: 0 0 18px; color: var(--muted); line-height: 1.6; }
+      .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+      .stat {
+        padding: 18px;
+        border-radius: 18px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        min-height: 118px;
+      }
+      .stat.highlight { background: linear-gradient(180deg, #f0fffb 0%, var(--accent-soft) 100%); border-color: #9adfd3; }
+      .stat.alert-off { background: linear-gradient(180deg, #fffaf1 0%, var(--off-soft) 100%); border-color: #f0caa6; }
+      .stat .big { display: block; font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
+      .hint { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+      form { display: grid; gap: 22px; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .field { display: grid; gap: 6px; }
+      .field.full { grid-column: 1 / -1; }
+      label { font-weight: 700; font-size: 14px; }
+      .field span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 14px;
+        border: 1px solid #d4c8b5;
+        border-radius: 12px;
+        background: #fffdfa;
+      }
+      input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+      }
+      .checkbox-row { display: flex; gap: 10px; align-items: center; }
+      .checkbox-row input { width: auto; }
+      .actions { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+      .actions .note { color: var(--muted); font-size: 13px; }
+      button {
+        width: fit-content;
+        padding: 12px 18px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent-strong);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      @media (max-width: 960px) {
+        .hero { flex-direction: column; }
+        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .form-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 640px) {
+        .stats { grid-template-columns: 1fr; }
+        .actions { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <div>
+          <h1>호가벽 설정</h1>
+          <p class="meta">매도호가 집중 감지와 실제 매수 돌파 확인 기준을 조정합니다. 저장된 값은 호가벽 수집기가 주기적으로 읽어 재시작 없이 반영합니다.</p>
+        </div>
+        <div class="stamp">
+          <span class="label">최신 설정</span>
+          <span class="value">{{ settings.updated_at if settings.updated_at else "표시 불가" }}</span>
+        </div>
+      </div>
+
+      <div class="tabs">
+        {% for tab in tabs %}
+        <a class="tab" href="{{ tab.path }}">{{ tab.name }}</a>
+        {% endfor %}
+        <a class="tab" href="/detector-admin/bot-dashboard">봇 감지 현황</a>
+        <a class="tab active" href="/detector-admin/orderbook-settings">호가벽 설정</a>
+        <a class="tab" href="/detector-admin/orderbook-dashboard">호가벽 감지 현황</a>
+      </div>
+
+      {% if saved %}<div class="saved">설정이 저장되었습니다. 수집기에 몇 초 안에 반영됩니다.</div>{% endif %}
+
+      <section class="section">
+        <h2>현재 실행 중인 호가벽 설정</h2>
+        <p>매도벽은 상위 N개 매도호가 중 특정 가격대에 거래대금이 몰린 경우 감지됩니다. 뚫림은 같은 가격대 근처의 BID 체결이 확인될 때만 인정됩니다.</p>
+        <div class="stats">
+          <div class="stat {% if settings.enabled %}highlight{% else %}alert-off{% endif %}">
+            <span class="label">감지 상태</span>
+            <span class="big">{{ "활성" if settings.enabled else "비활성" }}</span>
+            <span class="hint">호가벽 감지 자체를 켜거나 끕니다.</span>
+          </div>
+          <div class="stat">
+            <span class="label">호가 깊이</span>
+            <span class="big">{{ settings.orderbook_depth }}</span>
+            <span class="hint">상위 몇 개 매도호가를 볼지 정합니다.</span>
+          </div>
+          <div class="stat">
+            <span class="label">최소 매도벽 거래대금</span>
+            <span class="big">{{ "{:,.0f}".format(settings.min_wall_value_krw) }}원</span>
+            <span class="hint">이 금액 이상인 매도호가만 벽 후보입니다.</span>
+          </div>
+          <div class="stat">
+            <span class="label">뚫림 확인 비율</span>
+            <span class="big">{{ "{:.1f}".format(settings.breach_confirm_bid_pct) }}%</span>
+            <span class="hint">사라진 물량 대비 BID 체결금액 비율입니다.</span>
+          </div>
+          <div class="stat {% if settings.webhook_enabled %}highlight{% else %}alert-off{% endif %}">
+            <span class="label">디스코드 알림</span>
+            <span class="big">{{ "활성" if settings.webhook_enabled else "비활성" }}</span>
+            <span class="hint">매수 체결로 뚫림 확정 시 웹훅으로 전송합니다.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>설정 수정</h2>
+        <form method="post" action="/detector-admin/orderbook-settings">
+          <div class="form-grid">
+            <div class="field full checkbox-row">
+              <input id="enabled" name="enabled" type="checkbox" {% if settings.enabled %}checked{% endif %}>
+              <label for="enabled">호가벽 감지 활성화</label>
+            </div>
+            <div class="field">
+              <label for="orderbook_depth">호가 깊이</label>
+              <input id="orderbook_depth" name="orderbook_depth" type="number" min="1" max="30" step="1" value="{{ settings.orderbook_depth }}">
+              <span>상위 몇 개 매도호가 안에서 가장 큰 매도벽을 찾을지 설정합니다.</span>
+            </div>
+            <div class="field">
+              <label for="min_wall_value_krw">최소 매도벽 거래대금</label>
+              <input id="min_wall_value_krw" name="min_wall_value_krw" type="number" min="0" step="1000000" value="{{ settings.min_wall_value_krw|int }}">
+              <span>특정 가격대 매도 물량의 원화 거래대금 하한입니다.</span>
+            </div>
+            <div class="field">
+              <label for="min_concentration_pct">최소 집중도(%)</label>
+              <input id="min_concentration_pct" name="min_concentration_pct" type="number" min="0" max="100" step="0.1" value="{{ settings.min_concentration_pct }}">
+              <span>상위 매도호가 전체 거래대금 중 가장 큰 매도벽이 차지해야 하는 비율입니다.</span>
+            </div>
+            <div class="field">
+              <label for="drop_alert_pct">물량 감소율 기준(%)</label>
+              <input id="drop_alert_pct" name="drop_alert_pct" type="number" min="0" max="100" step="0.1" value="{{ settings.drop_alert_pct }}">
+              <span>기존 매도벽 물량이 이 비율 이상 줄면 뚫림 후보로 봅니다.</span>
+            </div>
+            <div class="field">
+              <label for="breach_confirm_window_seconds">체결 확인 구간(초)</label>
+              <input id="breach_confirm_window_seconds" name="breach_confirm_window_seconds" type="number" min="0.1" step="0.1" value="{{ settings.breach_confirm_window_seconds }}">
+              <span>매도벽 감소 후 BID 체결을 몇 초 동안 확인할지 정합니다.</span>
+            </div>
+            <div class="field">
+              <label for="breach_confirm_bid_pct">BID 체결 확인 비율(%)</label>
+              <input id="breach_confirm_bid_pct" name="breach_confirm_bid_pct" type="number" min="0" max="100" step="0.1" value="{{ settings.breach_confirm_bid_pct }}">
+              <span>사라진 매도벽 금액 대비 같은 가격대 BID 체결금액 비율입니다.</span>
+            </div>
+            <div class="field">
+              <label for="breach_price_tolerance_pct">체결 가격 허용 오차(%)</label>
+              <input id="breach_price_tolerance_pct" name="breach_price_tolerance_pct" type="number" min="0" step="0.01" value="{{ settings.breach_price_tolerance_pct }}">
+              <span>매도벽 가격 주변 어느 범위까지 BID 체결로 인정할지 정합니다.</span>
+            </div>
+            <div class="field">
+              <label for="breach_display_seconds">뚫림 표시 시간(초)</label>
+              <input id="breach_display_seconds" name="breach_display_seconds" type="number" min="1" step="1" value="{{ settings.breach_display_seconds }}">
+              <span>뚫림으로 확정된 종목을 대시보드에 강조 표시할 시간입니다.</span>
+            </div>
+            <div class="field full checkbox-row">
+              <input id="webhook_enabled" name="webhook_enabled" type="checkbox" {% if settings.webhook_enabled %}checked{% endif %}>
+              <label for="webhook_enabled">디스코드 웹훅 알림 활성화</label>
+            </div>
+            <div class="field full">
+              <label for="webhook_url">디스코드 웹훅 URL</label>
+              <input id="webhook_url" name="webhook_url" type="text" value="{{ settings.webhook_url }}" autocomplete="off">
+              <span>매수 체결로 호가벽 뚫림이 확정될 때 전송할 Discord webhook URL입니다.</span>
+            </div>
+            <div class="field">
+              <label for="cooldown_seconds">알림 쿨다운(초)</label>
+              <input id="cooldown_seconds" name="cooldown_seconds" type="number" min="0" step="1" value="{{ settings.cooldown_seconds }}">
+              <span>같은 종목에 대해 반복 알림을 막는 최소 간격입니다.</span>
+            </div>
+          </div>
+          <div class="actions">
+            <span class="note">저장 후 수집기가 설정을 다시 읽는 주기까지 최대 몇 초 정도 걸릴 수 있습니다.</span>
+            <button type="submit">설정 저장</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </body>
+</html>

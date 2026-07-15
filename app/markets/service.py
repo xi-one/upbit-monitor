@@ -125,9 +125,16 @@ def _build_market_cap_lookup(coinpaprika_tickers: list[dict], usdkrw_rate: float
 
 def _filter_upbit_markets(upbit_markets: list[dict], market_cap_lookup: dict[str, float], config: MarketSyncConfig):
     filtered_markets = []
+    excluded_markets = {
+        market.strip().upper()
+        for market in config.exclude_markets.split(",")
+        if market.strip()
+    }
     for entry in upbit_markets:
         market = entry.get("market", "")
         if not market.startswith("KRW-"):
+            continue
+        if market.upper() in excluded_markets:
             continue
         symbol = market.split("-", 1)[1]
         market_cap_krw = market_cap_lookup.get(symbol)
