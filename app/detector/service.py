@@ -30,6 +30,7 @@ from app.detector.rules import (
     get_param_threshold,
     normalize_rule_key,
 )
+from app.markets.service import fetch_market_label
 
 logger = build_logger("upbit_detector", "detector.log")
 conn = create_connection(DbConfig())
@@ -105,6 +106,15 @@ def build_reason(strategy_key, rule_reasons, rules):
         if rule["enabled"] and rule_key in definition_map:
             active_labels.append(definition_map[rule_key]["label"])
     return f"active_rules={', '.join(active_labels)} | " + ", ".join(rule_reasons)
+
+
+def attach_market_label(row):
+    try:
+        row["market_label"] = fetch_market_label(conn, row["market"])
+    except Exception as exc:
+        conn.rollback()
+        logger.warning("failed to load market label: market=%s error=%s", row["market"], exc)
+        row["market_label"] = row["market"]
 
 
 def json_default(value):
@@ -188,6 +198,7 @@ def evaluate_spike_strategy(strategy, rules):
             logger.debug("alert skipped by cooldown: strategy=spike market=%s", row["market"])
             continue
         reason = build_reason("spike", rule_reasons, rules)
+        attach_market_label(row)
         insert_alert(strategy, row, reason)
         webhook_url = strategy["webhook_url"] if strategy["webhook_enabled"] else ""
         send_discord_alert(logger, webhook_url, strategy, row, reason)
@@ -204,6 +215,7 @@ def evaluate_dip_buying_strategy(strategy, rules):
             logger.debug("alert skipped by cooldown: strategy=dip_buying market=%s", row["market"])
             continue
         reason = build_reason("dip_buying", rule_reasons, rules)
+        attach_market_label(row)
         insert_alert(strategy, row, reason)
         webhook_url = strategy["webhook_url"] if strategy["webhook_enabled"] else ""
         send_discord_alert(logger, webhook_url, strategy, row, reason)
@@ -226,6 +238,7 @@ def evaluate_bot_detection_strategy(strategy, rules):
         if was_recently_alerted(row["market"], "bot_detection", int(strategy["cooldown_seconds"])):
             logger.debug("alert skipped by cooldown: strategy=bot_detection market=%s", row["market"])
             continue
+        attach_market_label(row)
         insert_alert(strategy, row, reason)
         webhook_url = strategy["webhook_url"] if strategy["webhook_enabled"] else ""
         send_discord_alert(logger, webhook_url, strategy, row, reason)

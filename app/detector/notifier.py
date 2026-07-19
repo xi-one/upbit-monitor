@@ -115,12 +115,13 @@ def send_discord_alert(logger, webhook_url, strategy, row, reason):
         logger.info("alert detected without webhook: strategy=%s market=%s %s", strategy["strategy_key"], row["market"], reason)
         return
 
+    market_label = row.get("market_label") or row["market"]
     payload = {
         "username": "업비트 모니터",
-        "content": f"[{strategy['name']}] 조건 충족 종목 감지: **{row['market']}**",
+        "content": f"[{strategy['name']}] 조건 충족 종목 감지: **{market_label}**",
         "embeds": [
             {
-                "title": f"{row['market']} 알림",
+                "title": f"{market_label} 알림",
                 "description": reason,
                 "color": _embed_color(strategy["strategy_key"]),
                 "fields": _build_embed_fields(strategy["strategy_key"], row),

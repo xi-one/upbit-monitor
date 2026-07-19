@@ -114,7 +114,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'BID'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'BID'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 3 DESC, 2;",
+          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'BID'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  p.bucket AS \"time\",\n  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(p.market, '-', 2)) AS metric,\n  p.value_krw AS value\nFROM per_second p\nLEFT JOIN monitored_markets m ON m.market = p.market\nWHERE p.side = 'BID'\n  AND p.market IN (SELECT market FROM active_markets)\nORDER BY 1, 3 DESC, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -232,7 +232,7 @@
           "format": "time_series",
           "metricColumn": "metric",
           "rawQuery": true,
-          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'ASK'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  value_krw AS value\nFROM per_second\nWHERE side = 'ASK'\n  AND market IN (SELECT market FROM active_markets)\nORDER BY 1, 3 DESC, 2;",
+          "rawSql": "WITH per_second AS (\n  SELECT\n    time_bucket('1 second', time) AS bucket,\n    market,\n    side,\n    SUM(trade_value) AS value_krw\n  FROM trades\n  WHERE $__timeFilter(time)\n  GROUP BY 1, 2, 3\n), active_markets AS (\n  SELECT market\n  FROM per_second\n  WHERE side = 'ASK'\n  GROUP BY market\n  HAVING MAX(value_krw) >= ${threshold_krw:raw}\n)\nSELECT\n  p.bucket AS \"time\",\n  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(p.market, '-', 2)) AS metric,\n  p.value_krw AS value\nFROM per_second p\nLEFT JOIN monitored_markets m ON m.market = p.market\nWHERE p.side = 'ASK'\n  AND p.market IN (SELECT market FROM active_markets)\nORDER BY 1, 3 DESC, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -509,7 +509,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'BID'\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'BID'\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  SUM(trade_value_sum) OVER (\n    PARTITION BY market\n    ORDER BY bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed\nORDER BY 1, 2;",
+          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'BID'\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'BID'\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  b.bucket AS \"time\",\n  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(b.market, '-', 2)) AS metric,\n  SUM(b.trade_value_sum) OVER (\n    PARTITION BY b.market\n    ORDER BY b.bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed b\nLEFT JOIN monitored_markets m ON m.market = b.market\nORDER BY 1, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -622,7 +622,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'ASK'\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'ASK'\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  SUM(trade_value_sum) OVER (\n    PARTITION BY market\n    ORDER BY bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed\nORDER BY 1, 2;",
+          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'ASK'\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND side = 'ASK'\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  b.bucket AS \"time\",\n  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(b.market, '-', 2)) AS metric,\n  SUM(b.trade_value_sum) OVER (\n    PARTITION BY b.market\n    ORDER BY b.bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed b\nLEFT JOIN monitored_markets m ON m.market = b.market\nORDER BY 1, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -735,7 +735,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  bucket AS \"time\",\n  market AS metric,\n  SUM(trade_value_sum) OVER (\n    PARTITION BY market\n    ORDER BY bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed\nORDER BY 1, 2;",
+          "rawSql": "WITH top_markets AS (\n  SELECT market\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market IN (SELECT market FROM monitored_markets)\n  GROUP BY market\n  ORDER BY SUM(trade_value) DESC\n  LIMIT 20\n), bucketed AS (\n  SELECT\n    time_bucket('${__interval}'::interval, time) AS bucket,\n    market,\n    SUM(trade_value) AS trade_value_sum\n  FROM trades\n  WHERE $__timeFilter(time)\n    AND market IN (SELECT market FROM top_markets)\n  GROUP BY 1, 2\n)\nSELECT\n  b.bucket AS \"time\",\n  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(b.market, '-', 2)) AS metric,\n  SUM(b.trade_value_sum) OVER (\n    PARTITION BY b.market\n    ORDER BY b.bucket\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS value\nFROM bucketed b\nLEFT JOIN monitored_markets m ON m.market = b.market\nORDER BY 1, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -975,22 +975,22 @@
       {
         "current": {
           "selected": true,
-          "text": "KRW-BTC",
+          "text": "비트코인[BTC]",
           "value": "KRW-BTC"
         },
         "datasource": {
           "type": "postgres",
           "uid": "timescale"
         },
-        "definition": "SELECT market FROM monitored_markets ORDER BY 1",
+        "definition": "SELECT korean_name || '[' || symbol || ']' AS __text, market AS __value FROM monitored_markets WHERE CONCAT(korean_name, '[', symbol, ']|', market) ILIKE '$__searchFilter' ORDER BY 1",
         "hide": 0,
         "includeAll": false,
-        "label": "Market",
+        "label": "종목",
         "multi": false,
         "name": "market",
         "options": [],
-        "query": "SELECT market FROM monitored_markets ORDER BY 1",
-        "refresh": 2,
+        "query": "SELECT korean_name || '[' || symbol || ']' AS __text, market AS __value FROM monitored_markets WHERE CONCAT(korean_name, '[', symbol, ']|', market) ILIKE '$__searchFilter' ORDER BY 1",
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,

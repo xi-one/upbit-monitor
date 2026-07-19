@@ -12,7 +12,7 @@ from app.common.config import DbConfig, OrderbookWallConfig
 from app.common.db import create_connection
 from app.common.logging import build_logger
 from app.common.schema import ensure_market_sync_schema, ensure_orderbook_schema
-from app.markets.service import fetch_market_refresh_version, fetch_monitored_markets
+from app.markets.service import fetch_market_label, fetch_market_refresh_version, fetch_monitored_markets
 
 logger = build_logger("upbit_orderbook", "orderbook.log")
 conn = create_connection(DbConfig())
@@ -202,6 +202,12 @@ def send_breach_alert(snapshot: dict, breach: dict, now: datetime):
         return
 
     market = snapshot["market"]
+    try:
+        market_label = fetch_market_label(conn, market)
+    except Exception as exc:
+        conn.rollback()
+        logger.warning("failed to load market label: market=%s error=%s", market, exc)
+        market_label = market
     last_alert_at = alert_cooldowns.get(market)
     cooldown_seconds = int(settings["cooldown_seconds"] or 0)
     if last_alert_at and (now - last_alert_at).total_seconds() < cooldown_seconds:
@@ -210,10 +216,10 @@ def send_breach_alert(snapshot: dict, breach: dict, now: datetime):
 
     payload = {
         "username": "업비트 모니터",
-        "content": f"[호가벽 뚫림] 매수 체결로 매도벽 돌파 감지: **{market}**",
+        "content": f"[호가벽 뚫림] 매수 체결로 매도벽 돌파 감지: **{market_label}**",
         "embeds": [
             {
-                "title": f"{market} 호가벽 뚫림",
+                "title": f"{market_label} 호가벽 뚫림",
                 "description": "매도벽 물량 감소와 같은 가격대 BID 체결이 함께 확인되었습니다.",
                 "color": 15158332,
                 "fields": [

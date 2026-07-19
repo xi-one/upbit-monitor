@@ -17,6 +17,12 @@ FROM monitored_markets
 ORDER BY market;
 """
 
+FETCH_MARKET_LABEL_SQL = """
+SELECT korean_name, symbol
+FROM monitored_markets
+WHERE market = %s;
+"""
+
 FETCH_MARKET_SYNC_STATUS_SQL = """
 SELECT
     last_refreshed_at,
@@ -82,6 +88,21 @@ def fetch_monitored_markets(conn) -> list[str]:
     with conn.cursor() as cursor:
         cursor.execute(FETCH_MONITORED_MARKETS_SQL)
         return [row[0] for row in cursor.fetchall()]
+
+
+def format_market_label(market: str, korean_name: str | None, symbol: str | None) -> str:
+    if korean_name and symbol:
+        return f"{korean_name}[{symbol}]"
+    return market
+
+
+def fetch_market_label(conn, market: str) -> str:
+    with conn.cursor() as cursor:
+        cursor.execute(FETCH_MARKET_LABEL_SQL, (market,))
+        row = cursor.fetchone()
+    if row is None:
+        return market
+    return format_market_label(market, row[0], row[1])
 
 
 def fetch_market_sync_status(conn) -> dict | None:
