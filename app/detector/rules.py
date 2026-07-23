@@ -58,7 +58,7 @@ STRATEGY_DEFINITIONS = {
     },
     "dip_buying": {
         "strategy_key": "dip_buying",
-        "name": "하따 감지",
+        "name": "급락 감지",
         "description": "짧은 시간 급락과 강한 매도 거래대금이 함께 나타난 종목을 감지합니다.",
         "rules": [
             {

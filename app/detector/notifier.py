@@ -86,6 +86,7 @@ def _build_embed_fields(strategy_key, row):
             {"name": "시작가", "value": _format_krw(row.get("first_price")), "inline": True},
             {"name": "현재가", "value": _format_krw(row.get("last_price")), "inline": True},
             {"name": "누적 매도 거래대금", "value": _format_krw(row.get("ask_trade_value")), "inline": False},
+            {"name": "최근 1분 매도 평단가", "value": _format_price(row.get("ask_average_price")), "inline": True},
         ]
 
     if strategy_key == "bot_detection":

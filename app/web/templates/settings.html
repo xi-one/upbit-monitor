@@ -233,6 +233,7 @@
         <a class="tab {% if tab.strategy_key == current_strategy_key %}active{% endif %}" href="{{ tab.path }}">{{ tab.name }}</a>
         {% endfor %}
         <a class="tab" href="/detector-admin/bot-dashboard">봇 감지 현황</a>
+        <a class="tab" href="/detector-admin/alerts-dashboard">급등/급락 현황</a>
         <a class="tab" href="/detector-admin/orderbook-settings">호가벽 설정</a>
         <a class="tab" href="/detector-admin/orderbook-dashboard">호가벽 감지 현황</a>
       </div>
@@ -306,7 +307,7 @@
       <section class="section">
         <span class="kicker">규칙</span>
         <h2>{{ strategy_definition.name }} 현재 규칙</h2>
-        <p>전략별로 독립된 규칙 집합을 사용합니다. 하따 감지는 별도 웹훅과 별도 조건 세트로 운영됩니다.</p>
+        <p>전략별로 독립된 규칙 집합을 사용합니다. 급락 감지는 별도 웹훅과 별도 조건 세트로 운영됩니다.</p>
         <div class="rule-list">
           {% for rule in rules %}
           <div class="rule-row">

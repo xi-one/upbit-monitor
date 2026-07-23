@@ -109,27 +109,57 @@ ORDER BY ratio_5m_vs_1h DESC, tps_ratio DESC;
 """
 
 FETCH_DIP_MARKET_METRICS_SQL = """
-WITH recent_window AS (
+WITH measurement AS (
+    SELECT statement_timestamp() AS measured_at
+),
+recent_window AS (
     SELECT
         market,
         (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price,
         (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price,
         COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS ask_trade_value
-    FROM trades
-    WHERE time >= statement_timestamp() - make_interval(mins => %s)
+    FROM trades, measurement
+    WHERE time >= measurement.measured_at - make_interval(mins => %s)
+    GROUP BY market
+),
+recent_1m AS (
+    SELECT
+        market,
+        COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_1m_bid_trade_value,
+        COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS ask_1m_trade_value,
+        CASE WHEN SUM(volume) FILTER (WHERE side = 'BID') = 0 THEN NULL
+             ELSE ROUND((SUM(price * volume) FILTER (WHERE side = 'BID') / SUM(volume) FILTER (WHERE side = 'BID'))::numeric, 6)::double precision
+        END AS buy_average_price,
+        CASE WHEN SUM(volume) FILTER (WHERE side = 'ASK') = 0 THEN NULL
+             ELSE ROUND((SUM(price * volume) FILTER (WHERE side = 'ASK') / SUM(volume) FILTER (WHERE side = 'ASK'))::numeric, 6)::double precision
+        END AS ask_average_price,
+        COUNT(*)::double precision / 60.0 AS tps_now,
+        (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price_1m,
+        (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price_1m
+    FROM trades, measurement
+    WHERE time >= measurement.measured_at - interval '1 minute'
     GROUP BY market
 )
 SELECT
-    market,
-    first_price,
-    last_price,
-    ask_trade_value,
+    recent_window.market,
+    recent_window.first_price,
+    recent_window.last_price,
+    recent_window.ask_trade_value,
+    COALESCE(recent_1m.buy_1m_bid_trade_value, 0)::double precision AS buy_1m_bid_trade_value,
+    COALESCE(recent_1m.ask_1m_trade_value, 0)::double precision AS ask_1m_trade_value,
+    recent_1m.buy_average_price,
+    recent_1m.ask_average_price,
+    COALESCE(recent_1m.tps_now, 0)::double precision AS tps_now,
+    CASE WHEN recent_1m.first_price_1m IS NULL OR recent_1m.first_price_1m = 0 OR recent_1m.last_price_1m IS NULL THEN NULL
+         ELSE ((recent_1m.last_price_1m - recent_1m.first_price_1m) / recent_1m.first_price_1m) * 100.0
+    END AS price_change_pct,
     CASE
-        WHEN first_price IS NULL OR first_price = 0 OR last_price IS NULL
+        WHEN recent_window.first_price IS NULL OR recent_window.first_price = 0 OR recent_window.last_price IS NULL
         THEN NULL
-        ELSE ((first_price - last_price) / first_price) * 100.0
+        ELSE ((recent_window.first_price - recent_window.last_price) / recent_window.first_price) * 100.0
     END AS price_drop_pct
 FROM recent_window
+LEFT JOIN recent_1m ON recent_1m.market = recent_window.market
 ORDER BY price_drop_pct DESC NULLS LAST, ask_trade_value DESC;
 """
 
