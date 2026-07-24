@@ -380,10 +380,8 @@ def fetch_alert_dashboard_alerts():
                 COALESCE((a.details_json ->> 'price_change_pct')::double precision, a.price_change_pct, 0) AS price_change_pct
             FROM market_alerts a
             LEFT JOIN monitored_markets m ON m.market = a.market
-            LEFT JOIN alert_dashboard_exclusions e ON e.market = a.market
             WHERE a.strategy_key IN ('spike', 'dip_buying')
               AND a.detected_at >= statement_timestamp() - interval '30 minutes'
-              AND e.market IS NULL
             ORDER BY a.detected_at DESC
             """
         )
@@ -420,11 +418,23 @@ def fetch_alert_dashboard_markets(window_seconds: int):
                 WHERE time >= statement_timestamp() - make_interval(secs => %s)
                 GROUP BY market
             ),
-            recent_alert_markets AS (
-                SELECT DISTINCT market
-                FROM market_alerts
-                WHERE strategy_key IN ('spike', 'dip_buying')
-                  AND detected_at >= statement_timestamp() - interval '30 minutes'
+            personal_alert_metrics AS (
+                SELECT
+                    market,
+                    COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_trade_value,
+                    COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS sell_trade_value,
+                    CASE WHEN SUM(volume) FILTER (WHERE side = 'BID') = 0 THEN NULL
+                         ELSE SUM(price * volume) FILTER (WHERE side = 'BID') / SUM(volume) FILTER (WHERE side = 'BID')
+                    END::double precision AS buy_average_price,
+                    CASE WHEN SUM(volume) FILTER (WHERE side = 'ASK') = 0 THEN NULL
+                         ELSE SUM(price * volume) FILTER (WHERE side = 'ASK') / SUM(volume) FILTER (WHERE side = 'ASK')
+                    END::double precision AS sell_average_price,
+                    COUNT(*)::double precision / 60.0 AS tps,
+                    (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price,
+                    (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price
+                FROM trades
+                WHERE time >= statement_timestamp() - interval '1 minute'
+                GROUP BY market
             )
             SELECT
                 m.market,
@@ -436,15 +446,19 @@ def fetch_alert_dashboard_markets(window_seconds: int):
                 s.acc_trade_price_24h,
                 COALESCE(s.ask_value_within_2pct_krw, 0)::double precision AS ask_value_within_2pct_krw,
                 COALESCE(s.bid_value_within_2pct_krw, 0)::double precision AS bid_value_within_2pct_krw,
-                (f.market IS NOT NULL) AS favorite,
-                (e.market IS NOT NULL) AS dashboard_alert_excluded,
-                (a.market IS NOT NULL) AS recently_alerted
+                COALESCE(p.buy_trade_value, 0)::double precision AS personal_buy_trade_value,
+                COALESCE(p.sell_trade_value, 0)::double precision AS personal_sell_trade_value,
+                p.buy_average_price AS personal_buy_average_price,
+                p.sell_average_price AS personal_sell_average_price,
+                COALESCE(p.tps, 0)::double precision AS personal_tps,
+                CASE
+                    WHEN p.first_price IS NULL OR p.first_price = 0 OR p.last_price IS NULL THEN NULL
+                    ELSE ((p.last_price - p.first_price) / p.first_price) * 100.0
+                END AS personal_price_change_pct
             FROM monitored_markets m
             LEFT JOIN recent_trades t ON t.market = m.market
             LEFT JOIN orderbook_wall_status s ON s.market = m.market
-            LEFT JOIN market_favorites f ON f.market = m.market
-            LEFT JOIN alert_dashboard_exclusions e ON e.market = m.market
-            LEFT JOIN recent_alert_markets a ON a.market = m.market
+            LEFT JOIN personal_alert_metrics p ON p.market = m.market
             ORDER BY m.market ASC
             """,
             (window_seconds,),
@@ -461,9 +475,12 @@ def fetch_alert_dashboard_markets(window_seconds: int):
             "acc_trade_price_24h": _numeric(row["acc_trade_price_24h"]),
             "ask_value_within_2pct_krw": float(row["ask_value_within_2pct_krw"] or 0),
             "bid_value_within_2pct_krw": float(row["bid_value_within_2pct_krw"] or 0),
-            "favorite": bool(row["favorite"]),
-            "dashboard_alert_excluded": bool(row["dashboard_alert_excluded"]),
-            "recently_alerted": bool(row["recently_alerted"]),
+            "personal_buy_trade_value": float(row["personal_buy_trade_value"] or 0),
+            "personal_sell_trade_value": float(row["personal_sell_trade_value"] or 0),
+            "personal_buy_average_price": _numeric(row["personal_buy_average_price"]),
+            "personal_sell_average_price": _numeric(row["personal_sell_average_price"]),
+            "personal_tps": float(row["personal_tps"] or 0),
+            "personal_price_change_pct": _numeric(row["personal_price_change_pct"]),
         }
         for row in rows
     ]
@@ -712,11 +729,9 @@ def bot_status_api():
 @requires_auth
 def alerts_dashboard_api():
     window_seconds = _dashboard_window_seconds()
-    alerts = fetch_alert_dashboard_alerts()
     return jsonify(
         {
             "window_seconds": window_seconds,
-            "alerts": alerts,
             "markets": fetch_alert_dashboard_markets(window_seconds),
         }
     )
