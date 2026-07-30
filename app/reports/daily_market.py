@@ -6,11 +6,13 @@ from zoneinfo import ZoneInfo
 import requests
 from psycopg2.extras import RealDictCursor
 
+from app.markets.service import format_market_label
+
 KST = ZoneInfo("Asia/Seoul")
 
 FETCH_DAILY_MARKET_MOVES_SQL = """
 WITH monitored AS (
-    SELECT market, korean_name
+    SELECT market, korean_name, symbol
     FROM monitored_markets
 ),
 baseline AS (
@@ -34,6 +36,7 @@ metrics AS (
     SELECT
         m.market,
         m.korean_name,
+        m.symbol,
         b.baseline_price,
         MAX(w.price) FILTER (WHERE w.time < %(immediate_end_at)s)::double precision AS immediate_peak_price,
         (ARRAY_AGG(w.price ORDER BY w.time DESC)
@@ -43,11 +46,12 @@ metrics AS (
     FROM monitored m
     JOIN baseline b ON b.market = m.market
     LEFT JOIN window_trades w ON w.market = m.market
-    GROUP BY m.market, m.korean_name, b.baseline_price
+    GROUP BY m.market, m.korean_name, m.symbol, b.baseline_price
 )
 SELECT
     market,
     korean_name,
+    symbol,
     baseline_price,
     immediate_peak_price,
     immediate_close_price,
@@ -128,8 +132,8 @@ def classify_market_moves(rows: list[dict], config) -> dict[str, list[dict]]:
 
 
 def _market_label(row: dict) -> str:
-    korean_name = row.get("korean_name") or ""
-    return f"**{row['market']}** ({korean_name})" if korean_name else f"**{row['market']}**"
+    label = format_market_label(row["market"], row.get("korean_name"), row.get("symbol"))
+    return f"**{label}**"
 
 
 def _format_immediate_row(row: dict) -> str:

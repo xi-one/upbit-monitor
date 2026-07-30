@@ -264,6 +264,31 @@ ALTER TABLE orderbook_wall_status
 ADD COLUMN IF NOT EXISTS breach_confirm_ratio DOUBLE PRECISION NULL;
 """
 
+ORDERBOOK_WALL_STATUS_CURRENT_PRICE_SQL = """
+ALTER TABLE orderbook_wall_status
+ADD COLUMN IF NOT EXISTS current_price DOUBLE PRECISION NULL;
+"""
+
+ORDERBOOK_WALL_STATUS_NEAR_PRICE_VALUES_SQL = """
+ALTER TABLE orderbook_wall_status
+ADD COLUMN IF NOT EXISTS ask_value_within_2pct_krw DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS bid_value_within_2pct_krw DOUBLE PRECISION NOT NULL DEFAULT 0;
+"""
+
+MARKET_FAVORITES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS market_favorites (
+    market TEXT PRIMARY KEY REFERENCES monitored_markets(market) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp()
+);
+"""
+
+ALERT_DASHBOARD_EXCLUSIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS alert_dashboard_exclusions (
+    market TEXT PRIMARY KEY REFERENCES monitored_markets(market) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp()
+);
+"""
+
 ORDERBOOK_WALL_STATUS_ACTIVE_INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_orderbook_wall_status_active_updated
 ON orderbook_wall_status (active, updated_at DESC);
@@ -348,8 +373,11 @@ def ensure_orderbook_schema(conn):
         cursor.execute(ORDERBOOK_WALL_STATUS_TABLE_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_BID_VALUE_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_CONFIRM_RATIO_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_CURRENT_PRICE_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_NEAR_PRICE_VALUES_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_ACTIVE_INDEX_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_BREACHED_INDEX_SQL)
+        cursor.execute(MARKET_FAVORITES_TABLE_SQL)
     conn.commit()
 
 
@@ -565,13 +593,22 @@ def ensure_runtime_schema(conn, defaults=None, default_rules=None):
         cursor.execute(ORDERBOOK_WALL_SETTINGS_SEED_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_BID_VALUE_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_CONFIRM_RATIO_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_CURRENT_PRICE_SQL)
+        cursor.execute(ORDERBOOK_WALL_STATUS_NEAR_PRICE_VALUES_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_ACTIVE_INDEX_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_BREACHED_INDEX_SQL)
 
         _migrate_spike_strategy_from_legacy(cursor)
+        cursor.execute(
+            "UPDATE alert_strategies SET name = '급락 감지' WHERE strategy_key = 'dip_buying'"
+        )
         _sync_strategy_rules(cursor, "spike", build_default_strategy_bundle("spike"))
         _sync_strategy_rules(cursor, "dip_buying", build_default_strategy_bundle("dip_buying"))
         _sync_strategy_rules(cursor, "bot_detection", build_default_strategy_bundle("bot_detection"))
 
     conn.commit()
     ensure_market_sync_schema(conn)
+    with conn.cursor() as cursor:
+        cursor.execute(MARKET_FAVORITES_TABLE_SQL)
+        cursor.execute(ALERT_DASHBOARD_EXCLUSIONS_TABLE_SQL)
+    conn.commit()

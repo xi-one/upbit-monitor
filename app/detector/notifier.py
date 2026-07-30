@@ -86,6 +86,7 @@ def _build_embed_fields(strategy_key, row):
             {"name": "시작가", "value": _format_krw(row.get("first_price")), "inline": True},
             {"name": "현재가", "value": _format_krw(row.get("last_price")), "inline": True},
             {"name": "누적 매도 거래대금", "value": _format_krw(row.get("ask_trade_value")), "inline": False},
+            {"name": "최근 1분 매도 평단가", "value": _format_price(row.get("ask_average_price")), "inline": True},
         ]
 
     if strategy_key == "bot_detection":
@@ -115,12 +116,20 @@ def send_discord_alert(logger, webhook_url, strategy, row, reason):
         logger.info("alert detected without webhook: strategy=%s market=%s %s", strategy["strategy_key"], row["market"], reason)
         return
 
+    market_label = row.get("market_label") or row["market"]
+    average_price = _format_price(row.get("buy_average_price"))
+    is_spike = strategy["strategy_key"] == "spike"
+    notification_title = f"[{strategy['name']}] 조건 충족 종목 감지: **{market_label}**"
+    embed_title = f"{market_label} 알림"
+    if is_spike:
+        notification_title += f" | 매수 평단가: {average_price}"
+        embed_title += f" | 평단가 {average_price}"
     payload = {
         "username": "업비트 모니터",
-        "content": f"[{strategy['name']}] 조건 충족 종목 감지: **{row['market']}**",
+        "content": notification_title,
         "embeds": [
             {
-                "title": f"{row['market']} 알림",
+                "title": embed_title,
                 "description": reason,
                 "color": _embed_color(strategy["strategy_key"]),
                 "fields": _build_embed_fields(strategy["strategy_key"], row),

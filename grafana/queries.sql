@@ -10,7 +10,7 @@
 --   1. Create one Time series panel for buy-side and one for sell-side.
 --   2. Paste the matching query below into each panel.
 --   3. Format = Time series
---   4. Legend = {{market}}
+--   4. Legend = metric
 
 -- Buy-side panel
 WITH per_second AS (
@@ -31,12 +31,13 @@ active_markets AS (
   HAVING MAX(value_krw) >= 20000000
 )
 SELECT
-  bucket AS "time",
-  market,
-  value_krw
-FROM per_second
-WHERE side = 'BID'
-  AND market IN (SELECT market FROM active_markets)
+  p.bucket AS "time",
+  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(p.market, '-', 2)) AS metric,
+  p.value_krw AS value
+FROM per_second p
+LEFT JOIN monitored_markets m ON m.market = p.market
+WHERE p.side = 'BID'
+  AND p.market IN (SELECT market FROM active_markets)
 ORDER BY 1, 2;
 
 -- Sell-side panel
@@ -58,12 +59,13 @@ active_markets AS (
   HAVING MAX(value_krw) >= 20000000
 )
 SELECT
-  bucket AS "time",
-  market,
-  value_krw
-FROM per_second
-WHERE side = 'ASK'
-  AND market IN (SELECT market FROM active_markets)
+  p.bucket AS "time",
+  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(p.market, '-', 2)) AS metric,
+  p.value_krw AS value
+FROM per_second p
+LEFT JOIN monitored_markets m ON m.market = p.market
+WHERE p.side = 'ASK'
+  AND p.market IN (SELECT market FROM active_markets)
 ORDER BY 1, 2;
 
 -- Optional: combined panel with side in series name
@@ -84,9 +86,10 @@ active_markets AS (
   HAVING MAX(value_krw) >= 20000000
 )
 SELECT
-  bucket AS "time",
-  market || ' ' || side AS metric,
-  value_krw
-FROM per_second
-WHERE (market, side) IN (SELECT market, side FROM active_markets)
+  p.bucket AS "time",
+  COALESCE(NULLIF(m.korean_name, '') || '[' || m.symbol || ']', split_part(p.market, '-', 2)) || ' ' || p.side AS metric,
+  p.value_krw AS value
+FROM per_second p
+LEFT JOIN monitored_markets m ON m.market = p.market
+WHERE (p.market, p.side) IN (SELECT market, side FROM active_markets)
 ORDER BY 1, 2;

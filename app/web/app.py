@@ -351,6 +351,141 @@ def fetch_orderbook_wall_settings():
     }
 
 
+def _numeric(value):
+    return float(value) if value is not None else None
+
+
+def _dashboard_window_seconds():
+    try:
+        return max(10, min(int(request.args.get("window_seconds", "60")), 3600))
+    except ValueError:
+        return 60
+
+
+def fetch_alert_dashboard_alerts():
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            SELECT
+                a.strategy_key,
+                a.market,
+                COALESCE(m.korean_name, a.market) AS korean_name,
+                COALESCE(m.symbol, REPLACE(a.market, 'KRW-', '')) AS symbol,
+                a.detected_at,
+                COALESCE((a.details_json ->> 'buy_1m_bid_trade_value')::double precision, 0) AS buy_1m_bid_trade_value,
+                COALESCE((a.details_json ->> 'ask_1m_trade_value')::double precision, 0) AS ask_1m_trade_value,
+                (a.details_json ->> 'buy_average_price')::double precision AS buy_average_price,
+                (a.details_json ->> 'ask_average_price')::double precision AS ask_average_price,
+                COALESCE((a.details_json ->> 'tps_now')::double precision, a.tps_now, 0) AS tps_now,
+                COALESCE((a.details_json ->> 'price_change_pct')::double precision, a.price_change_pct, 0) AS price_change_pct
+            FROM market_alerts a
+            LEFT JOIN monitored_markets m ON m.market = a.market
+            WHERE a.strategy_key IN ('spike', 'dip_buying')
+              AND a.detected_at >= statement_timestamp() - interval '30 minutes'
+            ORDER BY a.detected_at DESC
+            """
+        )
+        rows = cursor.fetchall()
+    return [
+        {
+            "strategy_key": row["strategy_key"],
+            "market": row["market"],
+            "korean_name": row["korean_name"],
+            "symbol": row["symbol"],
+            "detected_at": _serialize_datetime(row["detected_at"]),
+            "buy_1m_bid_trade_value": float(row["buy_1m_bid_trade_value"] or 0),
+            "ask_1m_trade_value": float(row["ask_1m_trade_value"] or 0),
+            "buy_average_price": _numeric(row["buy_average_price"]),
+            "ask_average_price": _numeric(row["ask_average_price"]),
+            "tps_now": float(row["tps_now"] or 0),
+            "price_change_pct": _numeric(row["price_change_pct"]),
+        }
+        for row in rows
+    ]
+
+
+def fetch_alert_dashboard_markets(window_seconds: int):
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            WITH recent_trades AS (
+                SELECT
+                    market,
+                    COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_trade_value,
+                    COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS sell_trade_value,
+                    (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS latest_trade_price
+                FROM trades
+                WHERE time >= statement_timestamp() - make_interval(secs => %s)
+                GROUP BY market
+            ),
+            personal_alert_metrics AS (
+                SELECT
+                    market,
+                    COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_trade_value,
+                    COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS sell_trade_value,
+                    CASE WHEN SUM(volume) FILTER (WHERE side = 'BID') = 0 THEN NULL
+                         ELSE SUM(price * volume) FILTER (WHERE side = 'BID') / SUM(volume) FILTER (WHERE side = 'BID')
+                    END::double precision AS buy_average_price,
+                    CASE WHEN SUM(volume) FILTER (WHERE side = 'ASK') = 0 THEN NULL
+                         ELSE SUM(price * volume) FILTER (WHERE side = 'ASK') / SUM(volume) FILTER (WHERE side = 'ASK')
+                    END::double precision AS sell_average_price,
+                    COUNT(*)::double precision / 60.0 AS tps,
+                    (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price,
+                    (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price
+                FROM trades
+                WHERE time >= statement_timestamp() - interval '1 minute'
+                GROUP BY market
+            )
+            SELECT
+                m.market,
+                COALESCE(m.korean_name, m.market) AS korean_name,
+                COALESCE(m.symbol, REPLACE(m.market, 'KRW-', '')) AS symbol,
+                COALESCE(t.buy_trade_value, 0)::double precision AS buy_trade_value,
+                COALESCE(t.sell_trade_value, 0)::double precision AS sell_trade_value,
+                COALESCE(s.current_price, t.latest_trade_price) AS current_price,
+                s.acc_trade_price_24h,
+                COALESCE(s.ask_value_within_2pct_krw, 0)::double precision AS ask_value_within_2pct_krw,
+                COALESCE(s.bid_value_within_2pct_krw, 0)::double precision AS bid_value_within_2pct_krw,
+                COALESCE(p.buy_trade_value, 0)::double precision AS personal_buy_trade_value,
+                COALESCE(p.sell_trade_value, 0)::double precision AS personal_sell_trade_value,
+                p.buy_average_price AS personal_buy_average_price,
+                p.sell_average_price AS personal_sell_average_price,
+                COALESCE(p.tps, 0)::double precision AS personal_tps,
+                CASE
+                    WHEN p.first_price IS NULL OR p.first_price = 0 OR p.last_price IS NULL THEN NULL
+                    ELSE ((p.last_price - p.first_price) / p.first_price) * 100.0
+                END AS personal_price_change_pct
+            FROM monitored_markets m
+            LEFT JOIN recent_trades t ON t.market = m.market
+            LEFT JOIN orderbook_wall_status s ON s.market = m.market
+            LEFT JOIN personal_alert_metrics p ON p.market = m.market
+            ORDER BY m.market ASC
+            """,
+            (window_seconds,),
+        )
+        rows = cursor.fetchall()
+    return [
+        {
+            "market": row["market"],
+            "korean_name": row["korean_name"],
+            "symbol": row["symbol"],
+            "buy_trade_value": float(row["buy_trade_value"] or 0),
+            "sell_trade_value": float(row["sell_trade_value"] or 0),
+            "current_price": _numeric(row["current_price"]),
+            "acc_trade_price_24h": _numeric(row["acc_trade_price_24h"]),
+            "ask_value_within_2pct_krw": float(row["ask_value_within_2pct_krw"] or 0),
+            "bid_value_within_2pct_krw": float(row["bid_value_within_2pct_krw"] or 0),
+            "personal_buy_trade_value": float(row["personal_buy_trade_value"] or 0),
+            "personal_sell_trade_value": float(row["personal_sell_trade_value"] or 0),
+            "personal_buy_average_price": _numeric(row["personal_buy_average_price"]),
+            "personal_sell_average_price": _numeric(row["personal_sell_average_price"]),
+            "personal_tps": float(row["personal_tps"] or 0),
+            "personal_price_change_pct": _numeric(row["personal_price_change_pct"]),
+        }
+        for row in rows
+    ]
+
+
 def save_orderbook_wall_settings(form) -> None:
     with db_conn.cursor() as cursor:
         cursor.execute(
@@ -551,6 +686,12 @@ def bot_dashboard():
     return render_template("bot_dashboard.html")
 
 
+@app.route("/alerts-dashboard")
+@requires_auth
+def alerts_dashboard():
+    return render_template("alerts_dashboard.html")
+
+
 @app.route("/orderbook-dashboard")
 @requires_auth
 def orderbook_dashboard():
@@ -582,6 +723,52 @@ def bot_status_api():
             "count": len(rows),
         }
     )
+
+
+@app.route("/api/alerts-dashboard")
+@requires_auth
+def alerts_dashboard_api():
+    window_seconds = _dashboard_window_seconds()
+    return jsonify(
+        {
+            "window_seconds": window_seconds,
+            "markets": fetch_alert_dashboard_markets(window_seconds),
+        }
+    )
+
+
+@app.route("/api/market-favorites/<market>", methods=["POST"])
+@requires_auth
+def toggle_market_favorite(market):
+    with db_conn.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM monitored_markets WHERE market = %s", (market,))
+        if cursor.fetchone() is None:
+            return jsonify({"ok": False, "error": "unknown market"}), 404
+        cursor.execute("SELECT 1 FROM market_favorites WHERE market = %s", (market,))
+        is_favorite = cursor.fetchone() is not None
+        if is_favorite:
+            cursor.execute("DELETE FROM market_favorites WHERE market = %s", (market,))
+        else:
+            cursor.execute("INSERT INTO market_favorites (market) VALUES (%s)", (market,))
+    db_conn.commit()
+    return jsonify({"ok": True, "market": market, "favorite": not is_favorite})
+
+
+@app.route("/api/alert-dashboard-exclusions/<market>", methods=["POST"])
+@requires_auth
+def toggle_alert_dashboard_exclusion(market):
+    with db_conn.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM monitored_markets WHERE market = %s", (market,))
+        if cursor.fetchone() is None:
+            return jsonify({"ok": False, "error": "unknown market"}), 404
+        cursor.execute("SELECT 1 FROM alert_dashboard_exclusions WHERE market = %s", (market,))
+        is_excluded = cursor.fetchone() is not None
+        if is_excluded:
+            cursor.execute("DELETE FROM alert_dashboard_exclusions WHERE market = %s", (market,))
+        else:
+            cursor.execute("INSERT INTO alert_dashboard_exclusions (market) VALUES (%s)", (market,))
+    db_conn.commit()
+    return jsonify({"ok": True, "market": market, "excluded": not is_excluded})
 
 
 @app.route("/api/orderbook-walls")

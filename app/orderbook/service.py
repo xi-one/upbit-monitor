@@ -12,7 +12,7 @@ from app.common.config import DbConfig, OrderbookWallConfig
 from app.common.db import create_connection
 from app.common.logging import build_logger
 from app.common.schema import ensure_market_sync_schema, ensure_orderbook_schema
-from app.markets.service import fetch_market_refresh_version, fetch_monitored_markets
+from app.markets.service import fetch_market_label, fetch_market_refresh_version, fetch_monitored_markets
 
 logger = build_logger("upbit_orderbook", "orderbook.log")
 conn = create_connection(DbConfig())
@@ -40,6 +40,7 @@ previous_walls: dict[str, dict] = {}
 pending_breaches: dict[str, dict] = {}
 alert_cooldowns: dict[str, datetime] = {}
 ticker_24h_by_market: dict[str, float] = {}
+ticker_price_by_market: dict[str, float] = {}
 
 UPSERT_ORDERBOOK_WALL_STATUS_SQL = """
 INSERT INTO orderbook_wall_status (
@@ -62,6 +63,9 @@ INSERT INTO orderbook_wall_status (
     bid_trade_value_at_wall,
     breach_confirm_ratio,
     acc_trade_price_24h,
+    current_price,
+    ask_value_within_2pct_krw,
+    bid_value_within_2pct_krw,
     orderbook_ts,
     updated_at,
     metrics_json
@@ -86,6 +90,9 @@ VALUES (
     %(bid_trade_value_at_wall)s,
     %(breach_confirm_ratio)s,
     %(acc_trade_price_24h)s,
+    %(current_price)s,
+    %(ask_value_within_2pct_krw)s,
+    %(bid_value_within_2pct_krw)s,
     %(orderbook_ts)s,
     %(now)s,
     %(metrics_json)s
@@ -114,6 +121,9 @@ ON CONFLICT (market) DO UPDATE SET
     bid_trade_value_at_wall = EXCLUDED.bid_trade_value_at_wall,
     breach_confirm_ratio = EXCLUDED.breach_confirm_ratio,
     acc_trade_price_24h = COALESCE(EXCLUDED.acc_trade_price_24h, orderbook_wall_status.acc_trade_price_24h),
+    current_price = COALESCE(EXCLUDED.current_price, orderbook_wall_status.current_price),
+    ask_value_within_2pct_krw = EXCLUDED.ask_value_within_2pct_krw,
+    bid_value_within_2pct_krw = EXCLUDED.bid_value_within_2pct_krw,
     orderbook_ts = EXCLUDED.orderbook_ts,
     updated_at = EXCLUDED.updated_at,
     metrics_json = EXCLUDED.metrics_json
@@ -202,6 +212,12 @@ def send_breach_alert(snapshot: dict, breach: dict, now: datetime):
         return
 
     market = snapshot["market"]
+    try:
+        market_label = fetch_market_label(conn, market)
+    except Exception as exc:
+        conn.rollback()
+        logger.warning("failed to load market label: market=%s error=%s", market, exc)
+        market_label = market
     last_alert_at = alert_cooldowns.get(market)
     cooldown_seconds = int(settings["cooldown_seconds"] or 0)
     if last_alert_at and (now - last_alert_at).total_seconds() < cooldown_seconds:
@@ -210,10 +226,10 @@ def send_breach_alert(snapshot: dict, breach: dict, now: datetime):
 
     payload = {
         "username": "업비트 모니터",
-        "content": f"[호가벽 뚫림] 매수 체결로 매도벽 돌파 감지: **{market}**",
+        "content": f"[호가벽 뚫림] 매수 체결로 매도벽 돌파 감지: **{market_label}**",
         "embeds": [
             {
-                "title": f"{market} 호가벽 뚫림",
+                "title": f"{market_label} 호가벽 뚫림",
                 "description": "매도벽 물량 감소와 같은 가격대 BID 체결이 함께 확인되었습니다.",
                 "color": 15158332,
                 "fields": [
@@ -304,8 +320,22 @@ def _build_wall_snapshot(data: dict) -> dict | None:
         max_level["ask_value_krw"] >= float(settings["min_wall_value_krw"])
         and concentration_ratio >= float(settings["min_concentration_ratio"])
     )
+    market = data["code"]
+    current_price = ticker_price_by_market.get(market)
+    ask_value_within_2pct_krw = 0.0
+    bid_value_within_2pct_krw = 0.0
+    if current_price and current_price > 0:
+        lower_price = current_price * 0.98
+        upper_price = current_price * 1.02
+        for unit in units:
+            ask_price = float(unit.get("ask_price") or 0)
+            bid_price = float(unit.get("bid_price") or 0)
+            if current_price <= ask_price <= upper_price:
+                ask_value_within_2pct_krw += ask_price * float(unit.get("ask_size") or 0)
+            if lower_price <= bid_price <= current_price:
+                bid_value_within_2pct_krw += bid_price * float(unit.get("bid_size") or 0)
     return {
-        "market": data["code"],
+        "market": market,
         "active": active,
         "ask_price": max_level["ask_price"],
         "ask_size": max_level["ask_size"],
@@ -314,6 +344,9 @@ def _build_wall_snapshot(data: dict) -> dict | None:
         "concentration_ratio": concentration_ratio,
         "orderbook_ts": _parse_ts(data),
         "ask_levels": ask_levels,
+        "current_price": current_price,
+        "ask_value_within_2pct_krw": ask_value_within_2pct_krw,
+        "bid_value_within_2pct_krw": bid_value_within_2pct_krw,
     }
 
 
@@ -427,6 +460,9 @@ def upsert_status(snapshot: dict):
         "bid_trade_value_at_wall": breach["bid_trade_value_at_wall"],
         "breach_confirm_ratio": breach["breach_confirm_ratio"],
         "acc_trade_price_24h": ticker_24h_by_market.get(market),
+        "current_price": snapshot["current_price"],
+        "ask_value_within_2pct_krw": snapshot["ask_value_within_2pct_krw"],
+        "bid_value_within_2pct_krw": snapshot["bid_value_within_2pct_krw"],
         "orderbook_ts": snapshot["orderbook_ts"],
         "metrics_json": Json(
             {
@@ -462,9 +498,11 @@ def process_ticker(data: dict):
     if not market:
         return
     acc_trade_price_24h = data.get("acc_trade_price_24h")
-    if acc_trade_price_24h is None:
-        return
-    ticker_24h_by_market[market] = float(acc_trade_price_24h)
+    if acc_trade_price_24h is not None:
+        ticker_24h_by_market[market] = float(acc_trade_price_24h)
+    trade_price = data.get("trade_price")
+    if trade_price is not None:
+        ticker_price_by_market[market] = float(trade_price)
 
 
 def on_message(ws, message):
