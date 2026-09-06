@@ -25,6 +25,9 @@ db_conn.autocommit = True
 ensure_runtime_schema(db_conn)
 web_config = DetectorWebConfig()
 TEN_MILLION_KRW = 10_000_000
+BOT_HISTORY_MAX_DAYS = 90
+BOT_HISTORY_PAGE_SIZE = 50
+BOT_HISTORY_MAX_PAGE_SIZE = 100
 TEN_MILLION_RULE_KEYS = {"buy_1s_bid_trade_value", "buy_1m_bid_trade_value", "buy_2m_bid_trade_value", "ask_trade_value"}
 PARAM_ONLY_RULE_KEYS = {
     "lookback_minutes",
@@ -233,6 +236,113 @@ def fetch_active_bot_statuses():
         }
         for row in rows
     ]
+
+
+def _bounded_query_int(name, default, minimum, maximum):
+    try:
+        value = int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(value, maximum))
+
+
+def fetch_bot_detection_history(days, market_query, min_consecutive_count, state, page, page_size):
+    conditions = ["e.last_detected_at >= statement_timestamp() - make_interval(days => %s)"]
+    params = [days]
+
+    if market_query:
+        conditions.append(
+            "(e.market ILIKE %s OR m.korean_name ILIKE %s OR m.english_name ILIKE %s)"
+        )
+        search_pattern = f"%{market_query}%"
+        params.extend([search_pattern, search_pattern, search_pattern])
+    if min_consecutive_count:
+        conditions.append("e.consecutive_detection_count >= %s")
+        params.append(min_consecutive_count)
+    if state == "active":
+        conditions.append("e.ended_at IS NULL")
+    elif state == "ended":
+        conditions.append("e.ended_at IS NOT NULL")
+
+    where_clause = " AND ".join(conditions)
+    offset = (page - 1) * page_size
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            f"""
+            SELECT COUNT(*) AS total_count
+            FROM bot_detection_events e
+            LEFT JOIN monitored_markets m ON m.market = e.market
+            WHERE {where_clause}
+            """,
+            params,
+        )
+        total_count = int(cursor.fetchone()["total_count"])
+        cursor.execute(
+            f"""
+            SELECT
+                e.id,
+                e.market,
+                COALESCE(m.korean_name, e.market) AS korean_name,
+                COALESCE(m.english_name, '') AS english_name,
+                e.started_at,
+                e.last_detected_at,
+                e.ended_at,
+                e.consecutive_detection_count,
+                e.interval_seconds,
+                EXTRACT(
+                    EPOCH FROM (COALESCE(e.ended_at, statement_timestamp()) - e.started_at)
+                ) AS duration_seconds,
+                e.max_buy_sell_pair_count,
+                e.max_tps,
+                e.max_price_range_pct,
+                e.max_price_increase_pct,
+                e.max_total_trade_value,
+                e.last_reason
+            FROM bot_detection_events e
+            LEFT JOIN monitored_markets m ON m.market = e.market
+            WHERE {where_clause}
+            ORDER BY e.started_at DESC, e.id DESC
+            LIMIT %s OFFSET %s
+            """,
+            [*params, page_size, offset],
+        )
+        rows = cursor.fetchall()
+
+    return {
+        "items": [
+            {
+                "id": row["id"],
+                "market": row["market"],
+                "korean_name": row["korean_name"],
+                "english_name": row["english_name"],
+                "started_at": _serialize_datetime(row["started_at"]),
+                "last_detected_at": _serialize_datetime(row["last_detected_at"]),
+                "ended_at": _serialize_datetime(row["ended_at"]),
+                "consecutive_detection_count": int(row["consecutive_detection_count"] or 0),
+                "interval_seconds": int(row["interval_seconds"] or 0),
+                "duration_seconds": float(row["duration_seconds"] or 0),
+                "max_buy_sell_pair_count": float(row["max_buy_sell_pair_count"] or 0),
+                "max_tps": float(row["max_tps"] or 0),
+                "max_price_range_pct": (
+                    float(row["max_price_range_pct"])
+                    if row["max_price_range_pct"] is not None
+                    else None
+                ),
+                "max_price_increase_pct": (
+                    float(row["max_price_increase_pct"])
+                    if row["max_price_increase_pct"] is not None
+                    else None
+                ),
+                "max_total_trade_value": float(row["max_total_trade_value"] or 0),
+                "last_reason": row["last_reason"],
+            }
+            for row in rows
+        ],
+        "total_count": total_count,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total_count + page_size - 1) // page_size),
+    }
 
 
 def fetch_orderbook_wall_statuses():
@@ -721,6 +831,38 @@ def bot_status_api():
         {
             "items": rows,
             "count": len(rows),
+        }
+    )
+
+
+@app.route("/api/bot-history")
+@requires_auth
+def bot_history_api():
+    days = _bounded_query_int("days", 7, 1, BOT_HISTORY_MAX_DAYS)
+    min_consecutive_count = _bounded_query_int("min_count", 0, 0, 100000)
+    page = _bounded_query_int("page", 1, 1, 100000)
+    page_size = _bounded_query_int("page_size", BOT_HISTORY_PAGE_SIZE, 1, BOT_HISTORY_MAX_PAGE_SIZE)
+    market_query = request.args.get("market", "").strip()[:100]
+    state = request.args.get("state", "all").strip().lower()
+    if state not in {"all", "active", "ended"}:
+        state = "all"
+
+    return jsonify(
+        {
+            **fetch_bot_detection_history(
+                days,
+                market_query,
+                min_consecutive_count,
+                state,
+                page,
+                page_size,
+            ),
+            "filters": {
+                "days": days,
+                "market": market_query,
+                "min_count": min_consecutive_count,
+                "state": state,
+            },
         }
     )
 

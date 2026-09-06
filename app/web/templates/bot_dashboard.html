@@ -60,6 +60,17 @@
         box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.24);
       }
       .status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+      .view-tabs { display: flex; gap: 8px; margin: 0 0 14px; }
+      .view-tab {
+        border: 1px solid rgba(255,255,255,0.24);
+        border-radius: 999px;
+        padding: 10px 16px;
+        background: rgba(255,255,255,0.10);
+        color: #f8f3e7;
+        cursor: pointer;
+        font-weight: 800;
+      }
+      .view-tab.active { background: #f8f3e7; border-color: #f8f3e7; color: #172033; }
       .card {
         background: rgba(248, 243, 231, 0.96);
         border: 1px solid rgba(223, 212, 191, 0.9);
@@ -90,11 +101,60 @@
       .metric { font-weight: 800; }
       .metric.hot { color: var(--hot); }
       .empty { padding: 42px 20px; text-align: center; color: var(--muted); }
+      .history-controls {
+        display: grid;
+        grid-template-columns: 0.9fr 1.5fr 0.9fr 0.9fr auto;
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 16px;
+      }
+      .field { display: grid; gap: 6px; }
+      .field label { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
+      .field input, .field select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fffdf7;
+        color: var(--ink);
+        padding: 10px 11px;
+        font: inherit;
+      }
+      .apply-button {
+        border: 0;
+        border-radius: 10px;
+        padding: 11px 16px;
+        background: var(--green);
+        color: white;
+        cursor: pointer;
+        font-weight: 800;
+      }
+      .history-meta { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+      .state-badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .state-badge.active { background: #ccfbf1; color: #115e59; }
+      .state-badge.ended { background: #e5e7eb; color: #4b5563; }
+      .pagination { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 16px; }
+      .pagination button {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 12px;
+        background: #fffdf7;
+        color: var(--ink);
+        cursor: pointer;
+        font-weight: 800;
+      }
+      .pagination button:disabled { cursor: not-allowed; opacity: 0.42; }
       .footer-note { margin-top: 14px; color: #d1d5db; font-size: 13px; }
       @media (max-width: 980px) {
         .hero { flex-direction: column; }
         .actions { justify-content: flex-start; }
         .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .history-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         table, thead, tbody, th, td, tr { display: block; }
         thead { display: none; }
         tr { border-bottom: 1px solid var(--line); padding: 12px; }
@@ -103,6 +163,7 @@
       }
       @media (max-width: 560px) {
         .status-grid { grid-template-columns: 1fr; }
+        .history-controls { grid-template-columns: 1fr; }
         h1 { font-size: 30px; }
       }
     </style>
@@ -144,25 +205,92 @@
         </div>
       </section>
 
-      <section class="card table-card">
-        <table>
-          <thead>
-            <tr>
-              <th>종목</th>
-              <th>페어 수</th>
-              <th>TPS</th>
-              <th>가격 변동폭</th>
-              <th>가격 상승률</th>
-              <th>총 거래대금</th>
-              <th>최근 감지</th>
-            </tr>
-          </thead>
-          <tbody id="statusBody">
-            <tr><td class="empty" colspan="7">데이터를 불러오는 중입니다.</td></tr>
-          </tbody>
-        </table>
+      <nav class="view-tabs" aria-label="봇 감지 화면 선택">
+        <button id="liveTab" class="view-tab active" type="button">실시간 현황</button>
+        <button id="historyTab" class="view-tab" type="button">감지 이력</button>
+      </nav>
+
+      <section id="livePanel">
+        <section class="card table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>종목</th>
+                <th>페어 수</th>
+                <th>TPS</th>
+                <th>가격 변동폭</th>
+                <th>가격 상승률</th>
+                <th>총 거래대금</th>
+                <th>최근 감지</th>
+              </tr>
+            </thead>
+            <tbody id="statusBody">
+              <tr><td class="empty" colspan="7">데이터를 불러오는 중입니다.</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <div class="footer-note">브라우저 정책 때문에 음성 알림은 버튼을 한 번 눌러야 활성화됩니다.</div>
       </section>
-      <div class="footer-note">브라우저 정책 때문에 음성 알림은 버튼을 한 번 눌러야 활성화됩니다.</div>
+
+      <section id="historyPanel" hidden>
+        <section class="card history-controls">
+          <div class="field">
+            <label for="historyDays">조회 기간</label>
+            <select id="historyDays">
+              <option value="1">최근 24시간</option>
+              <option value="7" selected>최근 7일</option>
+              <option value="30">최근 30일</option>
+              <option value="90">최근 90일</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="historyMarket">종목 검색</label>
+            <input id="historyMarket" type="search" placeholder="한글명 또는 KRW-BTC">
+          </div>
+          <div class="field">
+            <label for="historyMinCount">최소 연속 감지</label>
+            <input id="historyMinCount" type="number" min="0" step="1" value="0">
+          </div>
+          <div class="field">
+            <label for="historyState">상태</label>
+            <select id="historyState">
+              <option value="all">전체</option>
+              <option value="active">진행 중</option>
+              <option value="ended">종료</option>
+            </select>
+          </div>
+          <button id="historyApply" class="apply-button" type="button">조회</button>
+        </section>
+
+        <p id="historyMeta" class="history-meta">이력 데이터를 불러오는 중입니다.</p>
+        <section class="card table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>상태</th>
+                <th>종목</th>
+                <th>시작</th>
+                <th>마지막 감지</th>
+                <th>종료</th>
+                <th>지속 시간</th>
+                <th>연속 감지</th>
+                <th>최대 페어</th>
+                <th>최대 TPS</th>
+                <th>최대 거래대금</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr><td class="empty" colspan="10">이력 데이터를 불러오는 중입니다.</td></tr>
+            </tbody>
+          </table>
+          <div class="pagination">
+            <button id="historyPrevious" type="button">이전</button>
+            <span id="historyPage">1 / 1</span>
+            <button id="historyNext" type="button">다음</button>
+          </div>
+        </section>
+        <div class="footer-note">이력은 이 기능 배포 이후 기록된 감지 세션을 최근 90일까지 보관합니다.</div>
+      </section>
     </main>
 
     <script>
@@ -172,6 +300,9 @@
       let ttsEnabled = false;
       const speechQueue = [];
       let isSpeaking = false;
+      let activeView = "live";
+      let historyPageNumber = 1;
+      let historyTotalPages = 1;
 
       const activeCount = document.getElementById("activeCount");
       const newCount = document.getElementById("newCount");
@@ -179,6 +310,20 @@
       const ttsState = document.getElementById("ttsState");
       const statusBody = document.getElementById("statusBody");
       const ttsButton = document.getElementById("ttsButton");
+      const liveTab = document.getElementById("liveTab");
+      const historyTab = document.getElementById("historyTab");
+      const livePanel = document.getElementById("livePanel");
+      const historyPanel = document.getElementById("historyPanel");
+      const historyDays = document.getElementById("historyDays");
+      const historyMarket = document.getElementById("historyMarket");
+      const historyMinCount = document.getElementById("historyMinCount");
+      const historyState = document.getElementById("historyState");
+      const historyApply = document.getElementById("historyApply");
+      const historyMeta = document.getElementById("historyMeta");
+      const historyBody = document.getElementById("historyBody");
+      const historyPrevious = document.getElementById("historyPrevious");
+      const historyNext = document.getElementById("historyNext");
+      const historyPage = document.getElementById("historyPage");
 
       function formatNumber(value, digits = 0) {
         if (value === null || value === undefined) return "-";
@@ -204,6 +349,28 @@
           minute: "2-digit",
           second: "2-digit",
         });
+      }
+
+      function formatDuration(value) {
+        const seconds = Math.max(0, Math.floor(Number(value) || 0));
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const parts = [];
+        if (days) parts.push(`${days}일`);
+        if (hours || days) parts.push(`${hours}시간`);
+        parts.push(`${minutes}분`);
+        return parts.join(" ");
+      }
+
+      function escapeHtml(value) {
+        return String(value || "").replace(/[&<>'"]/g, (character) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          "'": "&#39;",
+          '"': "&quot;",
+        })[character]);
       }
 
       function playNextSpeech() {
@@ -287,6 +454,100 @@
         }
       }
 
+      function renderHistory(data) {
+        const items = data.items || [];
+        historyTotalPages = data.total_pages || 1;
+        historyPageNumber = data.page || 1;
+        historyPage.textContent = `${historyPageNumber} / ${historyTotalPages}`;
+        historyPrevious.disabled = historyPageNumber <= 1;
+        historyNext.disabled = historyPageNumber >= historyTotalPages;
+        historyMeta.textContent = `최근 ${data.filters.days}일 · ${formatNumber(data.total_count)}건 · 최신 시작 시각순`;
+
+        if (items.length === 0) {
+          historyBody.innerHTML = '<tr><td class="empty" colspan="10">조건에 맞는 봇 감지 이력이 없습니다.</td></tr>';
+          return;
+        }
+
+        historyBody.innerHTML = items.map((item) => {
+          const isActive = !item.ended_at;
+          const stateLabel = isActive ? "진행 중" : "종료";
+          return `
+            <tr>
+              <td data-label="상태"><span class="state-badge ${isActive ? "active" : "ended"}">${stateLabel}</span></td>
+              <td data-label="종목"><span class="market">${escapeHtml(item.korean_name)}<small>${escapeHtml(item.market)}</small></span></td>
+              <td data-label="시작">${formatTime(item.started_at)}</td>
+              <td data-label="마지막 감지">${formatTime(item.last_detected_at)}</td>
+              <td data-label="종료">${formatTime(item.ended_at)}</td>
+              <td data-label="지속 시간"><span class="metric">${formatDuration(item.duration_seconds)}</span></td>
+              <td data-label="연속 감지"><span class="metric hot">${formatNumber(item.consecutive_detection_count)}회</span><small>평가 ${formatNumber(item.interval_seconds)}초 간격</small></td>
+              <td data-label="최대 페어">${formatNumber(item.max_buy_sell_pair_count)}</td>
+              <td data-label="최대 TPS">${formatNumber(item.max_tps, 3)}</td>
+              <td data-label="최대 거래대금">${formatKrw(item.max_total_trade_value)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      async function refreshHistory() {
+        const params = new URLSearchParams({
+          days: historyDays.value,
+          market: historyMarket.value.trim(),
+          min_count: historyMinCount.value || "0",
+          state: historyState.value,
+          page: String(historyPageNumber),
+          page_size: "50",
+        });
+        historyApply.disabled = true;
+        try {
+          const response = await fetch(`/detector-admin/api/bot-history?${params.toString()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          renderHistory(await response.json());
+        } catch (error) {
+          historyMeta.textContent = "이력 조회 실패";
+          historyBody.innerHTML = `<tr><td class="empty" colspan="10">봇 감지 이력을 불러오지 못했습니다: ${escapeHtml(error.message)}</td></tr>`;
+        } finally {
+          historyApply.disabled = false;
+        }
+      }
+
+      function switchView(view) {
+        activeView = view;
+        const showHistory = view === "history";
+        livePanel.hidden = showHistory;
+        historyPanel.hidden = !showHistory;
+        liveTab.classList.toggle("active", !showHistory);
+        historyTab.classList.toggle("active", showHistory);
+        if (showHistory) {
+          historyPageNumber = 1;
+          refreshHistory();
+        }
+      }
+
+      liveTab.addEventListener("click", () => switchView("live"));
+      historyTab.addEventListener("click", () => switchView("history"));
+      historyApply.addEventListener("click", () => {
+        historyPageNumber = 1;
+        refreshHistory();
+      });
+      historyMarket.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          historyPageNumber = 1;
+          refreshHistory();
+        }
+      });
+      historyPrevious.addEventListener("click", () => {
+        if (historyPageNumber > 1) {
+          historyPageNumber -= 1;
+          refreshHistory();
+        }
+      });
+      historyNext.addEventListener("click", () => {
+        if (historyPageNumber < historyTotalPages) {
+          historyPageNumber += 1;
+          refreshHistory();
+        }
+      });
+
       ttsButton.addEventListener("click", () => {
         ttsEnabled = !ttsEnabled;
         ttsState.textContent = ttsEnabled ? "켜짐" : "꺼짐";
@@ -304,6 +565,9 @@
 
       refreshStatus();
       setInterval(refreshStatus, 5000);
+      setInterval(() => {
+        if (activeView === "history") refreshHistory();
+      }, 15000);
     </script>
   </body>
 </html>
