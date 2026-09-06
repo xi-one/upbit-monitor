@@ -18,9 +18,13 @@ from app.detector.queries import (
     FETCH_STRATEGIES_SQL,
     FETCH_STRATEGY_RULES_SQL,
     INSERT_ALERT_SQL,
+    CLOSE_ALL_BOT_DETECTION_EVENTS_SQL,
+    CLOSE_INACTIVE_BOT_DETECTION_EVENTS_SQL,
+    DELETE_EXPIRED_BOT_DETECTION_EVENTS_SQL,
     MARK_ALL_INACTIVE_BOT_DETECTION_STATUS_SQL,
     MARK_INACTIVE_BOT_DETECTION_STATUS_SQL,
     RECENT_ALERT_SQL,
+    UPSERT_BOT_DETECTION_EVENT_SQL,
     UPSERT_BOT_DETECTION_STATUS_SQL,
 )
 from app.detector.rules import (
@@ -35,6 +39,7 @@ from app.markets.service import fetch_market_label
 logger = build_logger("upbit_detector", "detector.log")
 conn = create_connection(DbConfig())
 shutdown_requested = False
+BOT_HISTORY_CLEANUP_INTERVAL_SECONDS = 3600
 
 
 def handle_shutdown(signum, frame):
@@ -163,18 +168,42 @@ def insert_alert(strategy, row, reason):
     conn.commit()
 
 
-def upsert_bot_detection_status(row, reason):
+def upsert_bot_detection_status(row, reason, interval_seconds):
     metrics = serialize_metrics(row)
+    pair_count = float(row.get("buy_sell_pair_count") or 0)
+    tps = float(row.get("tps") or 0)
+    price_range_pct = float(row["price_range_pct"]) if row.get("price_range_pct") is not None else None
+    price_increase_pct = float(row["price_increase_pct"]) if row.get("price_increase_pct") is not None else None
+    total_trade_value = float(row.get("total_trade_value") or 0)
     with conn.cursor() as cursor:
         cursor.execute(
             UPSERT_BOT_DETECTION_STATUS_SQL,
             (
                 row["market"],
-                float(row.get("buy_sell_pair_count") or 0),
-                float(row.get("tps") or 0),
-                float(row["price_range_pct"]) if row.get("price_range_pct") is not None else None,
-                float(row["price_increase_pct"]) if row.get("price_increase_pct") is not None else None,
-                float(row.get("total_trade_value") or 0),
+                pair_count,
+                tps,
+                price_range_pct,
+                price_increase_pct,
+                total_trade_value,
+                reason,
+                metrics,
+            ),
+        )
+        cursor.execute(
+            UPSERT_BOT_DETECTION_EVENT_SQL,
+            (
+                row["market"],
+                interval_seconds,
+                pair_count,
+                tps,
+                price_range_pct,
+                price_increase_pct,
+                total_trade_value,
+                pair_count,
+                tps,
+                price_range_pct,
+                price_increase_pct,
+                total_trade_value,
                 reason,
                 metrics,
             ),
@@ -185,8 +214,18 @@ def mark_inactive_bot_detection_status(active_markets):
     with conn.cursor() as cursor:
         if active_markets:
             cursor.execute(MARK_INACTIVE_BOT_DETECTION_STATUS_SQL, (active_markets,))
+            cursor.execute(CLOSE_INACTIVE_BOT_DETECTION_EVENTS_SQL, (active_markets,))
         else:
             cursor.execute(MARK_ALL_INACTIVE_BOT_DETECTION_STATUS_SQL)
+            cursor.execute(CLOSE_ALL_BOT_DETECTION_EVENTS_SQL)
+
+
+def cleanup_expired_bot_detection_events():
+    with conn.cursor() as cursor:
+        cursor.execute(DELETE_EXPIRED_BOT_DETECTION_EVENTS_SQL)
+        deleted_count = cursor.rowcount
+    if deleted_count:
+        logger.info("bot detection history cleanup: deleted_events=%s", deleted_count)
 
 
 def evaluate_spike_strategy(strategy, rules):
@@ -234,7 +273,7 @@ def evaluate_bot_detection_strategy(strategy, rules):
             continue
         active_markets.append(row["market"])
         reason = build_reason("bot_detection", rule_reasons, rules)
-        upsert_bot_detection_status(row, reason)
+        upsert_bot_detection_status(row, reason, int(strategy["interval_seconds"]))
         if was_recently_alerted(row["market"], "bot_detection", int(strategy["cooldown_seconds"])):
             logger.debug("alert skipped by cooldown: strategy=bot_detection market=%s", row["market"])
             continue
@@ -253,6 +292,7 @@ def run():
     ensure_runtime_schema(conn)
 
     next_run_at = {}
+    next_bot_history_cleanup_at = 0
     default_strategy_keys = ", ".join(STRATEGY_DEFINITIONS.keys())
     logger.info("detector started: strategies=%s", default_strategy_keys)
 
@@ -268,6 +308,10 @@ def run():
                 ]
 
             now_ts = time.time()
+            if now_ts >= next_bot_history_cleanup_at:
+                cleanup_expired_bot_detection_events()
+                conn.commit()
+                next_bot_history_cleanup_at = now_ts + BOT_HISTORY_CLEANUP_INTERVAL_SECONDS
             active_intervals = []
 
             for bundle in bundles:

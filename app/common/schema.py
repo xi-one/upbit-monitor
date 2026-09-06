@@ -227,6 +227,46 @@ CREATE INDEX IF NOT EXISTS idx_bot_detection_status_active_last_detected
 ON bot_detection_status (active, last_detected_at DESC);
 """
 
+BOT_DETECTION_EVENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS bot_detection_events (
+    id BIGSERIAL PRIMARY KEY,
+    market TEXT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    last_detected_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    ended_at TIMESTAMPTZ NULL,
+    consecutive_detection_count INTEGER NOT NULL DEFAULT 1,
+    interval_seconds INTEGER NOT NULL DEFAULT 5,
+    max_buy_sell_pair_count DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_tps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_price_range_pct DOUBLE PRECISION NULL,
+    max_price_increase_pct DOUBLE PRECISION NULL,
+    max_total_trade_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_buy_sell_pair_count DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_tps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_price_range_pct DOUBLE PRECISION NULL,
+    last_price_increase_pct DOUBLE PRECISION NULL,
+    last_total_trade_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_reason TEXT NOT NULL DEFAULT '',
+    last_metrics_json JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+"""
+
+BOT_DETECTION_EVENTS_ACTIVE_UNIQUE_INDEX_SQL = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_detection_events_one_active_market
+ON bot_detection_events (market)
+WHERE ended_at IS NULL;
+"""
+
+BOT_DETECTION_EVENTS_HISTORY_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_bot_detection_events_last_detected
+ON bot_detection_events (last_detected_at DESC, market);
+"""
+
+BOT_DETECTION_EVENTS_MARKET_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_bot_detection_events_market_started
+ON bot_detection_events (market, started_at DESC);
+"""
+
 ORDERBOOK_WALL_STATUS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS orderbook_wall_status (
     market TEXT PRIMARY KEY,
@@ -585,6 +625,10 @@ def ensure_runtime_schema(conn, defaults=None, default_rules=None):
         cursor.execute(STRATEGY_RULES_INDEX_SQL)
         cursor.execute(BOT_DETECTION_STATUS_TABLE_SQL)
         cursor.execute(BOT_DETECTION_STATUS_ACTIVE_INDEX_SQL)
+        cursor.execute(BOT_DETECTION_EVENTS_TABLE_SQL)
+        cursor.execute(BOT_DETECTION_EVENTS_ACTIVE_UNIQUE_INDEX_SQL)
+        cursor.execute(BOT_DETECTION_EVENTS_HISTORY_INDEX_SQL)
+        cursor.execute(BOT_DETECTION_EVENTS_MARKET_INDEX_SQL)
         cursor.execute(ORDERBOOK_WALL_STATUS_TABLE_SQL)
         cursor.execute(ORDERBOOK_WALL_SETTINGS_TABLE_SQL)
         cursor.execute(ORDERBOOK_WALL_SETTINGS_WEBHOOK_ENABLED_SQL)

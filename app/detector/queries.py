@@ -314,6 +314,79 @@ ON CONFLICT (market) DO UPDATE SET
     metrics_json = EXCLUDED.metrics_json
 """
 
+UPSERT_BOT_DETECTION_EVENT_SQL = """
+INSERT INTO bot_detection_events (
+    market,
+    started_at,
+    last_detected_at,
+    ended_at,
+    consecutive_detection_count,
+    interval_seconds,
+    max_buy_sell_pair_count,
+    max_tps,
+    max_price_range_pct,
+    max_price_increase_pct,
+    max_total_trade_value,
+    last_buy_sell_pair_count,
+    last_tps,
+    last_price_range_pct,
+    last_price_increase_pct,
+    last_total_trade_value,
+    last_reason,
+    last_metrics_json
+)
+VALUES (
+    %s,
+    statement_timestamp(),
+    statement_timestamp(),
+    NULL,
+    1,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s::jsonb
+)
+ON CONFLICT (market) WHERE ended_at IS NULL DO UPDATE SET
+    last_detected_at = EXCLUDED.last_detected_at,
+    consecutive_detection_count = bot_detection_events.consecutive_detection_count + 1,
+    interval_seconds = EXCLUDED.interval_seconds,
+    max_buy_sell_pair_count = GREATEST(
+        bot_detection_events.max_buy_sell_pair_count,
+        EXCLUDED.max_buy_sell_pair_count
+    ),
+    max_tps = GREATEST(bot_detection_events.max_tps, EXCLUDED.max_tps),
+    max_price_range_pct = CASE
+        WHEN bot_detection_events.max_price_range_pct IS NULL THEN EXCLUDED.max_price_range_pct
+        WHEN EXCLUDED.max_price_range_pct IS NULL THEN bot_detection_events.max_price_range_pct
+        ELSE GREATEST(bot_detection_events.max_price_range_pct, EXCLUDED.max_price_range_pct)
+    END,
+    max_price_increase_pct = CASE
+        WHEN bot_detection_events.max_price_increase_pct IS NULL THEN EXCLUDED.max_price_increase_pct
+        WHEN EXCLUDED.max_price_increase_pct IS NULL THEN bot_detection_events.max_price_increase_pct
+        ELSE GREATEST(bot_detection_events.max_price_increase_pct, EXCLUDED.max_price_increase_pct)
+    END,
+    max_total_trade_value = GREATEST(
+        bot_detection_events.max_total_trade_value,
+        EXCLUDED.max_total_trade_value
+    ),
+    last_buy_sell_pair_count = EXCLUDED.last_buy_sell_pair_count,
+    last_tps = EXCLUDED.last_tps,
+    last_price_range_pct = EXCLUDED.last_price_range_pct,
+    last_price_increase_pct = EXCLUDED.last_price_increase_pct,
+    last_total_trade_value = EXCLUDED.last_total_trade_value,
+    last_reason = EXCLUDED.last_reason,
+    last_metrics_json = EXCLUDED.last_metrics_json
+"""
+
 MARK_INACTIVE_BOT_DETECTION_STATUS_SQL = """
 UPDATE bot_detection_status
 SET
@@ -329,6 +402,25 @@ SET
     active = FALSE,
     cleared_at = statement_timestamp()
 WHERE active = TRUE
+"""
+
+CLOSE_INACTIVE_BOT_DETECTION_EVENTS_SQL = """
+UPDATE bot_detection_events
+SET ended_at = statement_timestamp()
+WHERE ended_at IS NULL
+  AND NOT (market = ANY(%s))
+"""
+
+CLOSE_ALL_BOT_DETECTION_EVENTS_SQL = """
+UPDATE bot_detection_events
+SET ended_at = statement_timestamp()
+WHERE ended_at IS NULL
+"""
+
+DELETE_EXPIRED_BOT_DETECTION_EVENTS_SQL = """
+DELETE FROM bot_detection_events
+WHERE ended_at IS NOT NULL
+  AND ended_at < statement_timestamp() - interval '90 days'
 """
 
 FETCH_STRATEGIES_SQL = """
