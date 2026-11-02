@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote
 
@@ -515,6 +516,8 @@ def fetch_alert_dashboard_alerts():
 
 
 def fetch_alert_dashboard_markets(window_seconds: int):
+    # Bound timestamps let TimescaleDB prune chunks before choosing an index.
+    measured_at = datetime.now(timezone.utc)
     with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
         cursor.execute(
             """
@@ -525,7 +528,7 @@ def fetch_alert_dashboard_markets(window_seconds: int):
                     COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS sell_trade_value,
                     (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS latest_trade_price
                 FROM trades
-                WHERE time >= statement_timestamp() - make_interval(secs => %s)
+                WHERE time >= %s AND time <= %s
                 GROUP BY market
             ),
             personal_alert_metrics AS (
@@ -543,7 +546,7 @@ def fetch_alert_dashboard_markets(window_seconds: int):
                     (ARRAY_AGG(price ORDER BY time ASC))[1]::double precision AS first_price,
                     (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price
                 FROM trades
-                WHERE time >= statement_timestamp() - interval '1 minute'
+                WHERE time >= %s AND time <= %s
                 GROUP BY market
             )
             SELECT
@@ -571,7 +574,12 @@ def fetch_alert_dashboard_markets(window_seconds: int):
             LEFT JOIN personal_alert_metrics p ON p.market = m.market
             ORDER BY m.market ASC
             """,
-            (window_seconds,),
+            (
+                measured_at - timedelta(seconds=window_seconds),
+                measured_at,
+                measured_at - timedelta(minutes=1),
+                measured_at,
+            ),
         )
         rows = cursor.fetchall()
     return [
@@ -800,6 +808,13 @@ def bot_dashboard():
 @requires_auth
 def alerts_dashboard():
     return render_template("alerts_dashboard.html")
+
+
+@app.after_request
+def disable_alert_dashboard_cache(response):
+    if request.path in {"/alerts-dashboard", "/api/alerts-dashboard"}:
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/orderbook-dashboard")
