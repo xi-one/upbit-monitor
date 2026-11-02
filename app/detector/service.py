@@ -2,7 +2,7 @@ import json
 import signal
 import sys
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 from psycopg2.extras import RealDictCursor
 
@@ -40,6 +40,7 @@ logger = build_logger("upbit_detector", "detector.log")
 conn = create_connection(DbConfig())
 shutdown_requested = False
 BOT_HISTORY_CLEANUP_INTERVAL_SECONDS = 3600
+PERFORMANCE_LOG_INTERVAL_SECONDS = 60
 
 
 def handle_shutdown(signum, frame):
@@ -64,13 +65,13 @@ def fetch_runtime_strategies():
 
 def fetch_spike_metrics():
     with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-        cursor.execute(FETCH_SPIKE_MARKET_METRICS_SQL)
+        cursor.execute(FETCH_SPIKE_MARKET_METRICS_SQL, (datetime.now(timezone.utc),))
         return cursor.fetchall()
 
 
 def fetch_dip_metrics(lookback_minutes: int):
     with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-        cursor.execute(FETCH_DIP_MARKET_METRICS_SQL, (lookback_minutes,))
+        cursor.execute(FETCH_DIP_MARKET_METRICS_SQL, (datetime.now(timezone.utc), lookback_minutes))
         return cursor.fetchall()
 
 
@@ -80,11 +81,13 @@ def fetch_bot_metrics(
     trade_value_max: float,
     max_pair_gap_seconds: float,
 ):
+    measured_at = datetime.now(timezone.utc)
     with conn.cursor(cursor_factory=RealDictCursor) as cursor:
         cursor.execute(
             FETCH_BOT_MARKET_METRICS_SQL,
             (
-                lookback_seconds,
+                measured_at - timedelta(seconds=lookback_seconds),
+                measured_at,
                 trade_value_min,
                 trade_value_max,
                 max_pair_gap_seconds,
@@ -286,12 +289,40 @@ def evaluate_bot_detection_strategy(strategy, rules):
     conn.commit()
 
 
+def record_evaluation_timing(stats_by_strategy, strategy_key, started_at, finished_at, succeeded):
+    stats = stats_by_strategy.setdefault(
+        strategy_key,
+        {"first_started_at": started_at, "count": 0, "failures": 0, "total_seconds": 0, "max_seconds": 0},
+    )
+    duration = finished_at - started_at
+    stats["count"] += 1
+    stats["failures"] += int(not succeeded)
+    stats["total_seconds"] += duration
+    stats["max_seconds"] = max(stats["max_seconds"], duration)
+    if finished_at - stats["first_started_at"] < PERFORMANCE_LOG_INTERVAL_SECONDS:
+        return
+    count = stats["count"]
+    mean_start_interval = (started_at - stats["first_started_at"]) / (count - 1) if count > 1 else 0
+    logger.info(
+        "strategy performance: strategy=%s evaluations=%d failures=%d "
+        "avg_seconds=%.3f max_seconds=%.3f avg_start_interval_seconds=%.3f",
+        strategy_key,
+        count,
+        stats["failures"],
+        stats["total_seconds"] / count,
+        stats["max_seconds"],
+        mean_start_interval,
+    )
+    del stats_by_strategy[strategy_key]
+
+
 def run():
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
     ensure_runtime_schema(conn)
 
     next_run_at = {}
+    performance_stats = {}
     next_bot_history_cleanup_at = 0
     default_strategy_keys = ", ".join(STRATEGY_DEFINITIONS.keys())
     logger.info("detector started: strategies=%s", default_strategy_keys)
@@ -307,19 +338,15 @@ def run():
                     build_default_strategy_bundle("bot_detection"),
                 ]
 
-            now_ts = time.time()
+            now_ts = time.monotonic()
             if now_ts >= next_bot_history_cleanup_at:
                 cleanup_expired_bot_detection_events()
                 conn.commit()
                 next_bot_history_cleanup_at = now_ts + BOT_HISTORY_CLEANUP_INTERVAL_SECONDS
-            active_intervals = []
-
             for bundle in bundles:
                 strategy = bundle["strategy"]
                 rules = bundle["rules"]
                 interval_seconds = int(strategy["interval_seconds"])
-                active_intervals.append(interval_seconds)
-
                 strategy_key = strategy["strategy_key"]
                 if not strategy["enabled"]:
                     if strategy_key == "bot_detection" and next_run_at.get(strategy_key, 0) <= now_ts:
@@ -328,9 +355,11 @@ def run():
                         next_run_at[strategy_key] = now_ts + interval_seconds
                     continue
 
-                if next_run_at.get(strategy_key, 0) > now_ts:
+                if next_run_at.get(strategy_key, 0) > time.monotonic():
                     continue
 
+                evaluation_started_at = time.monotonic()
+                succeeded = False
                 try:
                     if strategy_key == "spike":
                         evaluate_spike_strategy(strategy, rules)
@@ -340,14 +369,30 @@ def run():
                         evaluate_bot_detection_strategy(strategy, rules)
                     else:
                         logger.warning("unknown strategy skipped: %s", strategy_key)
+                    succeeded = True
                 except Exception as exc:
                     conn.rollback()
                     logger.exception("strategy error: strategy=%s error=%s", strategy_key, exc)
                 finally:
-                    next_run_at[strategy_key] = now_ts + interval_seconds
+                    record_evaluation_timing(
+                        performance_stats,
+                        strategy_key,
+                        evaluation_started_at,
+                        time.monotonic(),
+                        succeeded,
+                    )
+                    next_run_at[strategy_key] = evaluation_started_at + interval_seconds
 
-            if active_intervals:
-                sleep_seconds = max(1, min(active_intervals))
+            # Wait only until the earliest deadline, including time spent querying.
+            next_deadline = min(
+                (
+                    next_run_at[bundle["strategy"]["strategy_key"]]
+                    for bundle in bundles
+                    if bundle["strategy"]["enabled"] and bundle["strategy"]["strategy_key"] in next_run_at
+                ),
+                default=time.monotonic() + 5,
+            )
+            sleep_seconds = max(0.05, min(1.0, next_deadline - time.monotonic()))
         except Exception as exc:
             conn.rollback()
             logger.exception("detector error: %s", exc)

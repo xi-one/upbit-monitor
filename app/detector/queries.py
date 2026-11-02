@@ -1,6 +1,6 @@
 FETCH_SPIKE_MARKET_METRICS_SQL = """
-WITH measurement AS (
-    SELECT statement_timestamp() AS measured_at
+WITH measurement AS NOT MATERIALIZED (
+    SELECT %s::timestamptz AS measured_at
 ),
 recent_5m AS (
     SELECT
@@ -11,6 +11,7 @@ recent_5m AS (
         (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price_5m
     FROM trades, measurement
     WHERE time >= measurement.measured_at - interval '5 minutes'
+      AND time <= measurement.measured_at
     GROUP BY market
 ),
 recent_1m_buy_1s AS (
@@ -24,6 +25,7 @@ recent_1m_buy_1s AS (
             COALESCE(SUM(trade_value) FILTER (WHERE side = 'BID'), 0)::double precision AS buy_trade_value_1s
         FROM trades, measurement
         WHERE time >= measurement.measured_at - interval '1 minute'
+          AND time <= measurement.measured_at
         GROUP BY market, date_trunc('second', time)
     ) buy_seconds
     GROUP BY market
@@ -37,6 +39,7 @@ recent_1m AS (
         (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price_1m
     FROM trades, measurement
     WHERE time >= measurement.measured_at - interval '1 minute'
+      AND time <= measurement.measured_at
     GROUP BY market
 ),
 recent_1m_buy_by_price AS (
@@ -46,6 +49,7 @@ recent_1m_buy_by_price AS (
         COALESCE(SUM(volume), 0)::double precision AS buy_volume
     FROM trades, measurement
     WHERE time >= measurement.measured_at - interval '1 minute'
+      AND time <= measurement.measured_at
       AND side = 'BID'
     GROUP BY market, price
 ),
@@ -70,6 +74,7 @@ recent_1h AS (
         COALESCE(SUM(trade_value), 0)::double precision AS trade_value_1h
     FROM trades, measurement
     WHERE time >= measurement.measured_at - interval '1 hour'
+      AND time <= measurement.measured_at
     GROUP BY market
 )
 SELECT
@@ -109,8 +114,8 @@ ORDER BY ratio_5m_vs_1h DESC, tps_ratio DESC;
 """
 
 FETCH_DIP_MARKET_METRICS_SQL = """
-WITH measurement AS (
-    SELECT statement_timestamp() AS measured_at
+WITH measurement AS NOT MATERIALIZED (
+    SELECT %s::timestamptz AS measured_at
 ),
 recent_window AS (
     SELECT
@@ -120,6 +125,7 @@ recent_window AS (
         COALESCE(SUM(trade_value) FILTER (WHERE side = 'ASK'), 0)::double precision AS ask_trade_value
     FROM trades, measurement
     WHERE time >= measurement.measured_at - make_interval(mins => %s)
+      AND time <= measurement.measured_at
     GROUP BY market
 ),
 recent_1m AS (
@@ -138,6 +144,7 @@ recent_1m AS (
         (ARRAY_AGG(price ORDER BY time DESC))[1]::double precision AS last_price_1m
     FROM trades, measurement
     WHERE time >= measurement.measured_at - interval '1 minute'
+      AND time <= measurement.measured_at
     GROUP BY market
 )
 SELECT
@@ -172,7 +179,7 @@ WITH recent_all AS (
         price,
         trade_value
     FROM trades
-    WHERE time >= statement_timestamp() - make_interval(secs => %s)
+    WHERE time >= %s AND time <= %s
 ),
 candidate_trades AS (
     SELECT *
