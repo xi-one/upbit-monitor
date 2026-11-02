@@ -15,7 +15,24 @@ The stack is intended to run with Docker Compose:
 - `orderbook-collector`: subscribes to Upbit websocket orderbooks/tickers and tracks ask-wall concentration
 - `detector`: scans recent trades, records alert events, and optionally sends webhook alerts
 - `grafana`: queries TimescaleDB and renders dashboards
-- `nginx`: exposes Grafana on port `80`
+- `nginx`: exposes the dashboard portal, Grafana, and detector pages on port `80`
+
+## Dashboard URLs
+
+- `/`: dashboard link portal
+- `/grafana/`: Grafana
+- `/grafana/d/upbit-threshold-monitor/upbit-threshold-monitor`: Grafana graphs
+- `/detector-admin/bot-dashboard`: bot detection status and history
+- `/detector-admin/alerts-dashboard`: spike and dip dashboard
+
+Set `GRAFANA_ROOT_URL` in `.env` to the public origin without a trailing slash,
+for example `http://sad-pepe.xyz` in production or `http://localhost` locally.
+Compose appends `/grafana/` and enables Grafana subpath serving.
+After deploying these files, recreate both Grafana and nginx:
+
+```bash
+docker compose up -d --force-recreate grafana nginx
+```
 
 ## Detector
 

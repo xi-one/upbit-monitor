@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111b19">
+  <title>SAD PEPE · 모니터링</title>
+  <style>
+    :root { color-scheme: dark; --ink: #edf2e9; --muted: #a2b3a5; --accent: #c5ee8c; --border: #ffffff20; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 44px 24px; color: var(--ink); font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: radial-gradient(ellipse at 12% 0%, #344c333b, transparent 65%), linear-gradient(135deg, #111b19, #172621); }
+    main { width: min(100%, 620px); }
+    .brand { color: var(--accent); font: 13px Georgia, serif; letter-spacing: .26em; }
+    h1 { margin: 24px 0 16px; font-size: clamp(34px, 7vw, 48px); line-height: 1.2; letter-spacing: -.05em; font-weight: 600; }
+    .intro { color: var(--muted); margin: 0 0 36px; line-height: 1.7; }
+    nav { display: grid; gap: 14px; }
+    a { display: flex; align-items: center; gap: 20px; color: inherit; text-decoration: none; padding: 25px 24px; border: 1px solid var(--border); border-radius: 16px; background: #ffffff04; transition: background .18s, border-color .18s, transform .18s; }
+    a:hover { background: #c5ee8c0c; border-color: #c5ee8c80; transform: translateY(-2px); }
+    a:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+    .number { color: var(--accent); font: italic 22px Georgia, serif; }
+    .label { flex: 1; }
+    strong { display: block; font-size: 19px; font-weight: 600; }
+    .description { display: block; color: var(--muted); font-size: 13px; line-height: 1.6; margin-top: 7px; }
+    .arrow { color: var(--accent); font-size: 24px; }
+    footer { margin-top: 32px; color: var(--muted); font-size: 11px; letter-spacing: .1em; }
+    @media (max-width: 420px) { a { padding: 22px 18px; gap: 14px; } strong { font-size: 17px; } }
+    @media (prefers-reduced-motion: reduce) { a { transition: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">SAD PEPE / MARKET MONITOR</div>
+    <h1>시장의 움직임을<br>한곳에서.</h1>
+    <p class="intro">보고 싶은 대시보드를 선택하세요.</p>
+    <nav aria-label="모니터링 대시보드">
+      <a href="/grafana/d/upbit-threshold-monitor/upbit-threshold-monitor">
+        <span class="number" aria-hidden="true">01</span>
+        <span class="label"><strong>그라파나 그래프 대시보드</strong><span class="description">종목별 매수·매도 거래대금과 가격 흐름</span></span>
+        <span class="arrow" aria-hidden="true">↗</span>
+      </a>
+      <a href="/detector-admin/bot-dashboard">
+        <span class="number" aria-hidden="true">02</span>
+        <span class="label"><strong>봇 감지기 현황</strong><span class="description">실시간 봇 패턴과 과거 감지 이력</span></span>
+        <span class="arrow" aria-hidden="true">↗</span>
+      </a>
+      <a href="/detector-admin/alerts-dashboard">
+        <span class="number" aria-hidden="true">03</span>
+        <span class="label"><strong>급등·급락 현황 대시보드</strong><span class="description">급등·급락 알림과 종목별 거래 현황</span></span>
+        <span class="arrow" aria-hidden="true">↗</span>
+      </a>
+    </nav>
+    <footer>UPBIT MONITOR</footer>
+  </main>
+</body>
+</html>
